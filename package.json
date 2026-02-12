@@ -16,7 +16,7 @@
     "@types/web-push": "^3.6.4",
     "canvas-confetti": "^1.9.3",
     "date-fns": "^4.1.0",
-    "framer-motion": "^11.15.0",
+    "framer-motion": "^12.34.0",
     "nanoid": "^5.0.9",
     "next": "^16.1.6",
     "react": "^19.0.0",
