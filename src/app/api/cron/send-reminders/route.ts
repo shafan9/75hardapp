@@ -20,7 +20,8 @@ export async function POST(request: Request) {
     const summary = await dispatchScheduledReminders();
     return NextResponse.json(summary, { status: 200 });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message =
+      error instanceof Error ? error.message : JSON.stringify(error, null, 2);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
