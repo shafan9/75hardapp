@@ -7,6 +7,8 @@ import { generateInviteCode } from "@/lib/utils";
 import type { Group, GroupMember } from "@/lib/types";
 import { useToast } from "@/components/ui/toast-provider";
 
+const REQUEST_TIMEOUT_MS = 12000;
+
 export function useGroup() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -14,11 +16,52 @@ export function useGroup() {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
 
+  const withTimeout = useCallback(async <T,>(promise: PromiseLike<T>, label: string): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS}ms`));
+      }, REQUEST_TIMEOUT_MS);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }, []);
+
+  const fetchMembers = useCallback(
+    async (groupId: string) => {
+      try {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("group_members")
+            .select("*, profiles(*)")
+            .eq("group_id", groupId),
+          "Loading group members"
+        );
+
+        if (error) {
+          console.error("Error fetching members:", error);
+          toast.error("Could not load group members.");
+          return;
+        }
+
+        setMembers((data as unknown as GroupMember[]) ?? []);
+      } catch (error) {
+        console.error("Error loading members:", error);
+        toast.error("Could not load group members.");
+      }
+    },
+    [supabase, toast, withTimeout]
+  );
+
   const fetchGroup = useCallback(async () => {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await withTimeout(supabase.auth.getUser(), "Loading user for group");
 
       if (!user) {
         setLoading(false);
@@ -26,11 +69,14 @@ export function useGroup() {
       }
 
       // Get the user's group membership, joined with the group
-      const { data: membership, error: memberError } = await supabase
-        .from("group_members")
-        .select("*, groups(*)")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const { data: membership, error: memberError } = await withTimeout(
+        supabase
+          .from("group_members")
+          .select("*, groups(*)")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        "Loading group membership"
+      );
 
       if (memberError) {
         console.error("Error fetching group membership:", memberError);
@@ -57,28 +103,23 @@ export function useGroup() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, toast]);
-
-  const fetchMembers = useCallback(
-    async (groupId: string) => {
-      const { data, error } = await supabase
-        .from("group_members")
-        .select("*, profiles(*)")
-        .eq("group_id", groupId);
-
-      if (error) {
-        console.error("Error fetching members:", error);
-        toast.error("Could not load group members.");
-        return;
-      }
-
-      setMembers((data as unknown as GroupMember[]) ?? []);
-    },
-    [supabase, toast]
-  );
+  }, [supabase, toast, fetchMembers, withTimeout]);
 
   useEffect(() => {
-    fetchGroup();
+    let isMounted = true;
+
+    const failSafeId = setTimeout(() => {
+      if (!isMounted) return;
+      setLoading(false);
+      console.warn("Group loading timeout reached; continuing with fallback state.");
+    }, REQUEST_TIMEOUT_MS + 2000);
+
+    void fetchGroup();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(failSafeId);
+    };
   }, [fetchGroup]);
 
   // Subscribe to realtime changes on group_members for this group
@@ -96,7 +137,7 @@ export function useGroup() {
           filter: `group_id=eq.${group.id}`,
         },
         () => {
-          fetchMembers(group.id);
+          void fetchMembers(group.id);
         }
       )
       .subscribe();

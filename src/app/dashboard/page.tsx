@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { DailyChecklist } from "@/components/checklist/daily-checklist";
 import { ProgressRing } from "@/components/ui/progress-ring";
@@ -16,6 +16,8 @@ import {
   getProgressPercent,
   getStreakMessage,
 } from "@/lib/utils";
+
+const LOADING_HELP_TIMEOUT_MS = 10000;
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -32,6 +34,7 @@ export default function DashboardPage() {
     currentDay,
   } = useChecklist(group?.id);
   const { checkAndAward } = useAchievements(user?.id, group?.id);
+  const [showLoadingHelp, setShowLoadingHelp] = useState(false);
 
   useEffect(() => {
     if (!user?.id || !group?.id) return;
@@ -43,7 +46,20 @@ export default function DashboardPage() {
   const streakMessage = getStreakMessage(currentDay);
   const quoteOfTheDay = getMotivationalQuoteForDay(currentDay);
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading) {
+      setShowLoadingHelp(false);
+      return;
+    }
+
+    const id = setTimeout(() => {
+      setShowLoadingHelp(true);
+    }, LOADING_HELP_TIMEOUT_MS);
+
+    return () => clearTimeout(id);
+  }, [loading]);
+
+  if (loading && !showLoadingHelp) {
     return (
       <div className="flex min-h-[40dvh] items-center justify-center">
         <motion.div
@@ -51,6 +67,23 @@ export default function DashboardPage() {
           animate={{ rotate: 360 }}
           transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
         />
+      </div>
+    );
+  }
+
+  if (loading && showLoadingHelp) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-border bg-bg-card p-5 text-center">
+        <p className="text-base font-semibold text-text-primary">Still loading your dashboard</p>
+        <p className="text-sm text-text-secondary">
+          We are having trouble loading your latest data right now. You can refresh to retry.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-sm font-semibold text-white"
+        >
+          Refresh
+        </button>
       </div>
     );
   }

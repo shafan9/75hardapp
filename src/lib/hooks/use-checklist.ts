@@ -11,6 +11,8 @@ import type {
 } from "@/lib/types";
 import { useToast } from "@/components/ui/toast-provider";
 
+const REQUEST_TIMEOUT_MS = 12000;
+
 export function useChecklist(groupId: string | undefined) {
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
   const [todayCompleted, setTodayCompleted] = useState<string[]>([]);
@@ -22,99 +24,157 @@ export function useChecklist(groupId: string | undefined) {
 
   const today = format(new Date(), "yyyy-MM-dd");
 
+  const withTimeout = useCallback(async <T,>(promise: PromiseLike<T>, label: string): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS}ms`));
+      }, REQUEST_TIMEOUT_MS);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }, []);
+
   const currentDay = progress?.current_day ?? 0;
   const isAllDone = DEFAULT_TASK_KEYS.every((key) =>
     todayCompleted.includes(key)
   );
 
   const fetchCompletions = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+      } = await withTimeout(supabase.auth.getUser(), "Loading user for checklist");
 
-    if (!user || !groupId) return;
+      if (!user || !groupId) return;
 
-    const { data, error } = await supabase
-      .from("task_completions")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("group_id", groupId)
-      .eq("date", today);
+      const { data, error } = await withTimeout(
+        supabase
+          .from("task_completions")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("group_id", groupId)
+          .eq("date", today),
+        "Loading task completions"
+      );
 
-    if (error) {
-      console.error("Error fetching completions:", error);
-      toast.error("Could not load today’s checklist.");
-      return;
-    }
-
-    const completionData = (data ?? []) as TaskCompletion[];
-    setCompletions(completionData);
-    setTodayCompleted(completionData.map((c) => c.task_key));
-  }, [supabase, groupId, today, toast]);
-
-  const fetchProgress = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !groupId) return;
-
-    const { data, error } = await supabase
-      .from("challenge_progress")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("group_id", groupId)
-      .single();
-
-    if (error) {
-      console.error("Error fetching progress:", error);
-      toast.error("Could not load progress.");
-      return;
-    }
-
-    setProgress(data as ChallengeProgress);
-  }, [supabase, groupId, toast]);
-
-  const fetchCustomTasks = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("custom_tasks")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("Error fetching custom tasks:", error);
-      toast.error("Could not load custom tasks.");
-      return;
-    }
-
-    setCustomTasks((data ?? []) as CustomTask[]);
-  }, [supabase, toast]);
-
-  useEffect(() => {
-    const loadAll = async () => {
-      setLoading(true);
-      await fetchCustomTasks();
-
-      if (groupId) {
-        await Promise.all([fetchCompletions(), fetchProgress()]);
-      } else {
-        setCompletions([]);
-        setTodayCompleted([]);
-        setProgress(null);
+      if (error) {
+        console.error("Error fetching completions:", error);
+        toast.error("Could not load today’s checklist.");
+        return;
       }
 
+      const completionData = (data ?? []) as TaskCompletion[];
+      setCompletions(completionData);
+      setTodayCompleted(completionData.map((c) => c.task_key));
+    } catch (error) {
+      console.error("Error loading completions:", error);
+      toast.error("Could not load today’s checklist.");
+    }
+  }, [supabase, groupId, today, toast, withTimeout]);
+
+  const fetchProgress = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await withTimeout(supabase.auth.getUser(), "Loading user progress");
+
+      if (!user || !groupId) return;
+
+      const { data, error } = await withTimeout(
+        supabase
+          .from("challenge_progress")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("group_id", groupId)
+          .single(),
+        "Loading challenge progress"
+      );
+
+      if (error) {
+        console.error("Error fetching progress:", error);
+        toast.error("Could not load progress.");
+        return;
+      }
+
+      setProgress(data as ChallengeProgress);
+    } catch (error) {
+      console.error("Error loading progress:", error);
+      toast.error("Could not load progress.");
+    }
+  }, [supabase, groupId, toast, withTimeout]);
+
+  const fetchCustomTasks = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+      } = await withTimeout(supabase.auth.getUser(), "Loading user custom tasks");
+
+      if (!user) return;
+
+      const { data, error } = await withTimeout(
+        supabase
+          .from("custom_tasks")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+        "Loading custom tasks"
+      );
+
+      if (error) {
+        console.error("Error fetching custom tasks:", error);
+        toast.error("Could not load custom tasks.");
+        return;
+      }
+
+      setCustomTasks((data ?? []) as CustomTask[]);
+    } catch (error) {
+      console.error("Error loading custom tasks:", error);
+      toast.error("Could not load custom tasks.");
+    }
+  }, [supabase, toast, withTimeout]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const failSafeId = setTimeout(() => {
+      if (!isMounted) return;
       setLoading(false);
+      console.warn("Checklist loading timeout reached; continuing with fallback state.");
+    }, REQUEST_TIMEOUT_MS + 2000);
+
+    const loadAll = async () => {
+      setLoading(true);
+
+      try {
+        await fetchCustomTasks();
+
+        if (groupId) {
+          await Promise.allSettled([fetchCompletions(), fetchProgress()]);
+        } else {
+          setCompletions([]);
+          setTodayCompleted([]);
+          setProgress(null);
+        }
+      } catch (error) {
+        console.error("Error loading checklist data:", error);
+        toast.error("Could not load checklist data.");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
     };
 
     void loadAll();
-  }, [groupId, fetchCompletions, fetchProgress, fetchCustomTasks]);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(failSafeId);
+    };
+  }, [groupId, fetchCompletions, fetchProgress, fetchCustomTasks, toast]);
 
   // Subscribe to realtime changes on task_completions for this group
   useEffect(() => {
@@ -131,7 +191,7 @@ export function useChecklist(groupId: string | undefined) {
           filter: `group_id=eq.${groupId}`,
         },
         () => {
-          fetchCompletions();
+          void fetchCompletions();
         }
       )
       .subscribe();

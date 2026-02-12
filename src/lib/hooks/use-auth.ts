@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 import { useToast } from "@/components/ui/toast-provider";
 
+const REQUEST_TIMEOUT_MS = 12000;
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -15,30 +17,56 @@ export function useAuth() {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
 
+  const withTimeout = useCallback(async <T,>(promise: PromiseLike<T>, label: string): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS}ms`));
+      }, REQUEST_TIMEOUT_MS);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }, []);
+
   const fetchProfile = useCallback(
     async (userId: string) => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
+      try {
+        const { data, error } = await withTimeout(
+          supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .single(),
+          "Loading profile"
+        );
 
-      if (error) {
-        console.error("Error fetching profile:", error);
-        return;
+        if (error) {
+          console.error("Error fetching profile:", error);
+          return;
+        }
+
+        setProfile(data as Profile);
+      } catch (error) {
+        console.error("Error loading profile:", error);
       }
-
-      setProfile(data as Profile);
     },
-    [supabase]
+    [supabase, withTimeout]
   );
 
   useEffect(() => {
+    let isMounted = true;
+
     const getUser = async () => {
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await withTimeout(supabase.auth.getUser(), "Loading user session");
+
+        if (!isMounted) return;
 
         setUser(user);
 
@@ -48,31 +76,45 @@ export function useAuth() {
       } catch (error) {
         console.error("Error fetching user:", error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    getUser();
+    const failSafeId = setTimeout(() => {
+      if (!isMounted) return;
+      setLoading(false);
+      console.warn("Auth loading timeout reached; continuing with fallback state.");
+    }, REQUEST_TIMEOUT_MS + 2000);
+
+    void getUser();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      try {
+        const currentUser = session?.user ?? null;
+        if (!isMounted) return;
 
-      if (currentUser) {
-        await fetchProfile(currentUser.id);
-      } else {
-        setProfile(null);
+        setUser(currentUser);
+
+        if (currentUser) {
+          await fetchProfile(currentUser.id);
+        } else {
+          setProfile(null);
+        }
+      } catch (error) {
+        console.error("Error handling auth state change:", error);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return () => {
+      isMounted = false;
+      clearTimeout(failSafeId);
       subscription.unsubscribe();
     };
-  }, [supabase, fetchProfile]);
+  }, [supabase, fetchProfile, withTimeout]);
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
