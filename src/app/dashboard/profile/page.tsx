@@ -41,6 +41,7 @@ export default function ProfilePage() {
   const { group } = useGroup();
   const { customTasks, addCustomTask, removeCustomTask, currentDay } = useChecklist(group?.id);
   const { earned } = useAchievements(user?.id, group?.id);
+  const emailSmsEnabled = process.env.NEXT_PUBLIC_ENABLE_EMAIL_SMS === "true";
 
   const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
@@ -224,6 +225,10 @@ export default function ProfilePage() {
   }
 
   async function toggleEmail() {
+    if (!emailSmsEnabled) {
+      toast.error("Email notifications are coming soon.");
+      return;
+    }
     const next = !emailEnabled;
     setEmailEnabled(next);
     const ok = await persistSettings({ email_enabled: next });
@@ -231,6 +236,10 @@ export default function ProfilePage() {
   }
 
   async function toggleSms() {
+    if (!emailSmsEnabled) {
+      toast.error("SMS notifications are coming soon.");
+      return;
+    }
     const next = !smsEnabled;
     setSmsEnabled(next);
     const ok = await persistSettings({ sms_enabled: next });
@@ -536,17 +545,20 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-text-primary">Email Notifications</p>
-              <p className="text-xs text-text-muted">Reminder emails to your account</p>
+              <p className="text-xs text-text-muted">
+                Reminder emails to your account
+                {!emailSmsEnabled ? " (coming soon)" : ""}
+              </p>
             </div>
             <motion.button
               onClick={() => {
                 void toggleEmail();
               }}
-              disabled={savingSettings}
+              disabled={savingSettings || !emailSmsEnabled}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
                 emailEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                savingSettings && "opacity-60"
+                (savingSettings || !emailSmsEnabled) && "opacity-60"
               )}
               whileTap={{ scale: 0.95 }}
             >
@@ -561,17 +573,20 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-text-primary">SMS Notifications</p>
-              <p className="text-xs text-text-muted">Text reminders to your phone</p>
+              <p className="text-xs text-text-muted">
+                Text reminders to your phone
+                {!emailSmsEnabled ? " (coming soon)" : ""}
+              </p>
             </div>
             <motion.button
               onClick={() => {
                 void toggleSms();
               }}
-              disabled={savingSettings}
+              disabled={savingSettings || !emailSmsEnabled}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
                 smsEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                savingSettings && "opacity-60"
+                (savingSettings || !emailSmsEnabled) && "opacity-60"
               )}
               whileTap={{ scale: 0.95 }}
             >
@@ -583,7 +598,12 @@ export default function ProfilePage() {
             </motion.button>
           </div>
 
-          <div className="grid gap-3 border-t border-border/50 pt-3">
+          <div
+            className={cn(
+              "grid gap-3 border-t border-border/50 pt-3",
+              !emailSmsEnabled && "opacity-60"
+            )}
+          >
             <label className="space-y-1">
               <span className="text-xs font-medium text-text-secondary">Phone (E.164 for SMS)</span>
               <input
@@ -591,6 +611,7 @@ export default function ProfilePage() {
                 placeholder="+15551234567"
                 value={phoneE164}
                 onChange={(event) => setPhoneE164(event.target.value)}
+                disabled={!emailSmsEnabled}
                 className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
               />
             </label>
@@ -603,6 +624,7 @@ export default function ProfilePage() {
                   placeholder="America/New_York"
                   value={timezone}
                   onChange={(event) => setTimezone(event.target.value)}
+                  disabled={!emailSmsEnabled}
                   className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
                 />
               </label>
@@ -613,6 +635,7 @@ export default function ProfilePage() {
                   type="time"
                   value={reminderTime}
                   onChange={(event) => setReminderTime(event.target.value)}
+                  disabled={!emailSmsEnabled}
                   className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus:outline-none"
                 />
               </label>
@@ -622,7 +645,7 @@ export default function ProfilePage() {
               onClick={() => {
                 void saveAdvancedSettings();
               }}
-              disabled={savingSettings}
+              disabled={savingSettings || !emailSmsEnabled}
               className="rounded-xl bg-accent-violet px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
             >
               Save Reminder Details
@@ -652,19 +675,27 @@ export default function ProfilePage() {
               onClick={() => {
                 void sendTest("email");
               }}
-              disabled={sendingTestChannel !== null}
+              disabled={sendingTestChannel !== null || !emailSmsEnabled}
               className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
             >
-              {sendingTestChannel === "email" ? "Sending..." : "Test Email"}
+              {sendingTestChannel === "email"
+                ? "Sending..."
+                : emailSmsEnabled
+                  ? "Test Email"
+                  : "Email Coming Soon"}
             </button>
             <button
               onClick={() => {
                 void sendTest("sms");
               }}
-              disabled={sendingTestChannel !== null}
+              disabled={sendingTestChannel !== null || !emailSmsEnabled}
               className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
             >
-              {sendingTestChannel === "sms" ? "Sending..." : "Test SMS"}
+              {sendingTestChannel === "sms"
+                ? "Sending..."
+                : emailSmsEnabled
+                  ? "Test SMS"
+                  : "SMS Coming Soon"}
             </button>
           </div>
         </div>
