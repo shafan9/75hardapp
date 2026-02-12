@@ -11,8 +11,8 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { useChecklist } from "@/lib/hooks/use-checklist";
 import { useGroup } from "@/lib/hooks/use-group";
 import {
-  getDailyMotivationalQuote,
   getDayLabel,
+  getMotivationalQuoteForDay,
   getProgressPercent,
   getStreakMessage,
 } from "@/lib/utils";
@@ -41,7 +41,7 @@ export default function DashboardPage() {
   const loading = authLoading || groupLoading || checklistLoading;
   const progressPercent = getProgressPercent(currentDay, TOTAL_DAYS);
   const streakMessage = getStreakMessage(currentDay);
-  const quoteOfTheDay = getDailyMotivationalQuote();
+  const quoteOfTheDay = getMotivationalQuoteForDay(currentDay);
 
   if (loading) {
     return (

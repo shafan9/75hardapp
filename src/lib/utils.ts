@@ -50,3 +50,9 @@ export function getDailyMotivationalQuote(date: Date = new Date()) {
 
   return MOTIVATIONAL_QUOTES[index];
 }
+
+export function getMotivationalQuoteForDay(day: number) {
+  const safeDay = Number.isFinite(day) ? Math.floor(day) : 1;
+  const normalizedDay = Math.min(Math.max(safeDay, 1), MOTIVATIONAL_QUOTES.length);
+  return MOTIVATIONAL_QUOTES[normalizedDay - 1];
+}
