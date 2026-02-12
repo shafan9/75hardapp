@@ -15,7 +15,7 @@ export const DEFAULT_TASKS = [
     key: "diet",
     label: "Follow Diet",
     emoji: "🥗",
-    description: "No alcohol, no cheat meals",
+    description: "No cheat meals",
   },
   {
     key: "water",
