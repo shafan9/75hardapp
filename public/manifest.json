@@ -1,0 +1,24 @@
+{
+  "name": "75 Squad",
+  "short_name": "75 Squad",
+  "description": "Crush 75 Hard Together with your squad",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0B0F1A",
+  "theme_color": "#7C3AED",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
