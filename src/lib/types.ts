@@ -80,9 +80,48 @@ export interface UserAchievement {
 export interface UserSettings {
   id: string;
   user_id: string;
+  in_app_enabled: boolean;
   push_enabled: boolean;
   email_enabled: boolean;
+  sms_enabled: boolean;
+  phone_e164: string | null;
+  timezone: string;
   reminder_time: string;
+}
+
+export interface PushSubscriptionRecord {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string;
+}
+
+export interface InAppNotification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string;
+  metadata: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+}
+
+export type NotificationChannel = "in_app" | "push" | "email" | "sms";
+
+export interface NotificationDelivery {
+  id: string;
+  user_id: string;
+  channel: NotificationChannel;
+  reminder_date: string;
+  status: "sent" | "failed" | "skipped";
+  provider_message_id: string | null;
+  error_message: string | null;
+  created_at: string;
 }
 
 export interface MemberDayStatus {

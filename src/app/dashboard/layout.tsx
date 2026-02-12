@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Today", icon: "✅", activeIcon: "✅" },
   { href: "/dashboard/feed", label: "Feed", icon: "📢", activeIcon: "📢" },
+  { href: "/dashboard/notifications", label: "Alerts", icon: "🔔", activeIcon: "🔔" },
   { href: "/dashboard/group", label: "Squad", icon: "👥", activeIcon: "👥" },
   { href: "/dashboard/leaderboard", label: "Ranks", icon: "🏆", activeIcon: "🏆" },
   { href: "/dashboard/profile", label: "Profile", icon: "👤", activeIcon: "👤" },

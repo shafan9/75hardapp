@@ -8,8 +8,31 @@ import { useAchievements } from "@/lib/hooks/use-achievements";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { useChecklist } from "@/lib/hooks/use-checklist";
 import { useGroup } from "@/lib/hooks/use-group";
+import { subscribeUserToPush, unsubscribeUserFromPush } from "@/lib/push";
 import { cn } from "@/lib/utils";
+import type { NotificationChannel } from "@/lib/types";
 import { useToast } from "@/components/ui/toast-provider";
+
+interface NotificationSettingsForm {
+  in_app_enabled: boolean;
+  push_enabled: boolean;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  phone_e164: string;
+  timezone: string;
+  reminder_time: string;
+}
+
+function normalizeReminderTime(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "21:00:00";
+  return trimmed.length === 5 ? `${trimmed}:00` : trimmed;
+}
+
+function toTimeInputValue(value: string | null | undefined): string {
+  if (!value) return "21:00";
+  return value.slice(0, 5);
+}
 
 export default function ProfilePage() {
   const supabase = useMemo(() => createClient(), []);
@@ -19,14 +42,22 @@ export default function ProfilePage() {
   const { customTasks, addCustomTask, removeCustomTask, currentDay } = useChecklist(group?.id);
   const { earned } = useAchievements(user?.id, group?.id);
 
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [isEditingName, setIsEditingName] = useState(false);
+  const [inAppEnabled, setInAppEnabled] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [phoneE164, setPhoneE164] = useState("");
+  const [timezone, setTimezone] = useState(localTimezone);
+  const [reminderTime, setReminderTime] = useState("21:00");
   const [newTaskName, setNewTaskName] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [sendingTestChannel, setSendingTestChannel] = useState<NotificationChannel | null>(null);
   const [totalCompletions, setTotalCompletions] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
 
@@ -42,7 +73,9 @@ export default function ProfilePage() {
       const [settingsResult, completionsResult, progressResult] = await Promise.all([
         supabase
           .from("user_settings")
-          .select("push_enabled, email_enabled")
+          .select(
+            "in_app_enabled, push_enabled, email_enabled, sms_enabled, phone_e164, timezone, reminder_time"
+          )
           .eq("user_id", userId)
           .maybeSingle(),
         supabase
@@ -56,8 +89,13 @@ export default function ProfilePage() {
       ]);
 
       if (settingsResult.data) {
+        setInAppEnabled(Boolean(settingsResult.data.in_app_enabled ?? true));
         setPushEnabled(Boolean(settingsResult.data.push_enabled));
         setEmailEnabled(Boolean(settingsResult.data.email_enabled));
+        setSmsEnabled(Boolean(settingsResult.data.sms_enabled));
+        setPhoneE164(String(settingsResult.data.phone_e164 ?? ""));
+        setTimezone(String(settingsResult.data.timezone ?? localTimezone));
+        setReminderTime(toTimeInputValue(String(settingsResult.data.reminder_time ?? "21:00")));
       }
 
       setTotalCompletions(completionsResult.count ?? 0);
@@ -72,17 +110,32 @@ export default function ProfilePage() {
     }
 
     void loadSettingsAndStats();
-  }, [supabase, user?.id]);
+  }, [localTimezone, supabase, user?.id]);
 
-  async function persistSettings(nextPush: boolean, nextEmail: boolean) {
+  async function persistSettings(settings?: Partial<NotificationSettingsForm>) {
     if (!user?.id) return false;
+
+    const payload: NotificationSettingsForm = {
+      in_app_enabled: settings?.in_app_enabled ?? inAppEnabled,
+      push_enabled: settings?.push_enabled ?? pushEnabled,
+      email_enabled: settings?.email_enabled ?? emailEnabled,
+      sms_enabled: settings?.sms_enabled ?? smsEnabled,
+      phone_e164: settings?.phone_e164 ?? phoneE164,
+      timezone: settings?.timezone ?? timezone,
+      reminder_time: settings?.reminder_time ?? reminderTime,
+    };
 
     setSavingSettings(true);
     const { error } = await supabase.from("user_settings").upsert(
       {
         user_id: user.id,
-        push_enabled: nextPush,
-        email_enabled: nextEmail,
+        in_app_enabled: payload.in_app_enabled,
+        push_enabled: payload.push_enabled,
+        email_enabled: payload.email_enabled,
+        sms_enabled: payload.sms_enabled,
+        phone_e164: payload.phone_e164.trim() || null,
+        timezone: payload.timezone.trim() || localTimezone,
+        reminder_time: normalizeReminderTime(payload.reminder_time),
       },
       { onConflict: "user_id" }
     );
@@ -98,18 +151,115 @@ export default function ProfilePage() {
     return true;
   }
 
+  async function registerPushSubscription() {
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey) {
+      toast.error("Push is not configured yet. Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY.");
+      return false;
+    }
+
+    const subscription = await subscribeUserToPush(vapidPublicKey);
+    const response = await fetch("/api/notifications/push-subscription", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(subscription),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(payload.error ?? "Failed to save push subscription.");
+    }
+
+    return true;
+  }
+
+  async function removePushSubscription() {
+    const { endpoint } = await unsubscribeUserFromPush();
+    if (!endpoint) return true;
+
+    const response = await fetch("/api/notifications/push-subscription", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ endpoint }),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(payload.error ?? "Failed to remove push subscription.");
+    }
+
+    return true;
+  }
+
+  async function toggleInApp() {
+    const next = !inAppEnabled;
+    setInAppEnabled(next);
+    const ok = await persistSettings({ in_app_enabled: next });
+    if (!ok) setInAppEnabled(!next);
+  }
+
   async function togglePush() {
     const next = !pushEnabled;
+
+    try {
+      if (next) {
+        await registerPushSubscription();
+      } else {
+        await removePushSubscription();
+      }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Could not update push subscription.");
+      return;
+    }
+
     setPushEnabled(next);
-    const ok = await persistSettings(next, emailEnabled);
-    if (!ok) setPushEnabled(!next);
+    const ok = await persistSettings({ push_enabled: next });
+    if (!ok) {
+      setPushEnabled(!next);
+    }
   }
 
   async function toggleEmail() {
     const next = !emailEnabled;
     setEmailEnabled(next);
-    const ok = await persistSettings(pushEnabled, next);
+    const ok = await persistSettings({ email_enabled: next });
     if (!ok) setEmailEnabled(!next);
+  }
+
+  async function toggleSms() {
+    const next = !smsEnabled;
+    setSmsEnabled(next);
+    const ok = await persistSettings({ sms_enabled: next });
+    if (!ok) setSmsEnabled(!next);
+  }
+
+  async function saveAdvancedSettings() {
+    const ok = await persistSettings();
+    if (!ok) return;
+  }
+
+  async function sendTest(channel: NotificationChannel) {
+    setSendingTestChannel(channel);
+    const response = await fetch("/api/notifications/test", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ channel }),
+    });
+    setSendingTestChannel(null);
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      toast.error(payload.error ?? `Could not send ${channel} test notification.`);
+      return;
+    }
+
+    toast.success(`${channel.toUpperCase()} test notification sent.`);
   }
 
   async function saveName() {
@@ -335,8 +485,33 @@ export default function ProfilePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-sm font-medium text-text-primary">In-App Alerts</p>
+              <p className="text-xs text-text-muted">Shown in your Alerts tab</p>
+            </div>
+            <motion.button
+              onClick={() => {
+                void toggleInApp();
+              }}
+              disabled={savingSettings}
+              className={cn(
+                "relative h-7 w-12 rounded-full transition-colors",
+                inAppEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
+                savingSettings && "opacity-60"
+              )}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div
+                className="absolute top-1 h-5 w-5 rounded-full bg-white"
+                animate={{ left: inAppEnabled ? 26 : 4 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+              />
+            </motion.button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-text-primary">Push Notifications</p>
-              <p className="text-xs text-text-muted">Daily reminders and squad updates</p>
+              <p className="text-xs text-text-muted">Browser/phone push reminders</p>
             </div>
             <motion.button
               onClick={() => {
@@ -360,8 +535,8 @@ export default function ProfilePage() {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-text-primary">Email Summaries</p>
-              <p className="text-xs text-text-muted">Weekly progress reports</p>
+              <p className="text-sm font-medium text-text-primary">Email Notifications</p>
+              <p className="text-xs text-text-muted">Reminder emails to your account</p>
             </div>
             <motion.button
               onClick={() => {
@@ -381,6 +556,116 @@ export default function ProfilePage() {
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
               />
             </motion.button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-text-primary">SMS Notifications</p>
+              <p className="text-xs text-text-muted">Text reminders to your phone</p>
+            </div>
+            <motion.button
+              onClick={() => {
+                void toggleSms();
+              }}
+              disabled={savingSettings}
+              className={cn(
+                "relative h-7 w-12 rounded-full transition-colors",
+                smsEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
+                savingSettings && "opacity-60"
+              )}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.div
+                className="absolute top-1 h-5 w-5 rounded-full bg-white"
+                animate={{ left: smsEnabled ? 26 : 4 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+              />
+            </motion.button>
+          </div>
+
+          <div className="grid gap-3 border-t border-border/50 pt-3">
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-text-secondary">Phone (E.164 for SMS)</span>
+              <input
+                type="tel"
+                placeholder="+15551234567"
+                value={phoneE164}
+                onChange={(event) => setPhoneE164(event.target.value)}
+                className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
+              />
+            </label>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-xs font-medium text-text-secondary">Timezone</span>
+                <input
+                  type="text"
+                  placeholder="America/New_York"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-medium text-text-secondary">Daily reminder time</span>
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={(event) => setReminderTime(event.target.value)}
+                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus:outline-none"
+                />
+              </label>
+            </div>
+
+            <button
+              onClick={() => {
+                void saveAdvancedSettings();
+              }}
+              disabled={savingSettings}
+              className="rounded-xl bg-accent-violet px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            >
+              Save Reminder Details
+            </button>
+          </div>
+
+          <div className="grid gap-2 border-t border-border/50 pt-3 sm:grid-cols-2">
+            <button
+              onClick={() => {
+                void sendTest("in_app");
+              }}
+              disabled={sendingTestChannel !== null}
+              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
+            >
+              {sendingTestChannel === "in_app" ? "Sending..." : "Test In-App"}
+            </button>
+            <button
+              onClick={() => {
+                void sendTest("push");
+              }}
+              disabled={sendingTestChannel !== null}
+              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
+            >
+              {sendingTestChannel === "push" ? "Sending..." : "Test Push"}
+            </button>
+            <button
+              onClick={() => {
+                void sendTest("email");
+              }}
+              disabled={sendingTestChannel !== null}
+              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
+            >
+              {sendingTestChannel === "email" ? "Sending..." : "Test Email"}
+            </button>
+            <button
+              onClick={() => {
+                void sendTest("sms");
+              }}
+              disabled={sendingTestChannel !== null}
+              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
+            >
+              {sendingTestChannel === "sms" ? "Sending..." : "Test SMS"}
+            </button>
           </div>
         </div>
       </motion.div>
