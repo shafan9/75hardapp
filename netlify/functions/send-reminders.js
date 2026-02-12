@@ -16,7 +16,7 @@ exports.handler = async () => {
     };
   }
 
-  const endpoint = `${siteUrl.replace(/\\/$/, "")}/api/cron/send-reminders`;
+  const endpoint = `${siteUrl.replace(/\/$/, "")}/api/cron/send-reminders`;
 
   const response = await fetch(endpoint, {
     method: "POST",
