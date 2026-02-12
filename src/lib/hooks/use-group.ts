@@ -16,29 +16,63 @@ export function useGroup() {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
 
-  const withTimeout = useCallback(async <T,>(promise: PromiseLike<T>, label: string): Promise<T> => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS}ms`));
-      }, REQUEST_TIMEOUT_MS);
-    });
+  const withTimeout = useCallback(
+    async <T,>(promise: PromiseLike<T>, label: string): Promise<T> => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS}ms`));
+        }, REQUEST_TIMEOUT_MS);
+      });
 
-    try {
-      return await Promise.race([promise, timeoutPromise]);
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+      try {
+        return await Promise.race([promise, timeoutPromise]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    },
+    []
+  );
+
+  const ensureOwnProfile = useCallback(async () => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return null;
     }
-  }, []);
+
+    const metadata = (user.user_metadata ?? {}) as {
+      full_name?: string;
+      name?: string;
+      avatar_url?: string;
+      picture?: string;
+    };
+
+    const { error } = await supabase.from("profiles").upsert(
+      {
+        id: user.id,
+        display_name: metadata.full_name ?? metadata.name ?? user.email?.split("@")[0] ?? "Player",
+        avatar_url: metadata.avatar_url ?? metadata.picture ?? null,
+      },
+      { onConflict: "id" }
+    );
+
+    if (error) {
+      console.error("Error ensuring profile:", error);
+      return null;
+    }
+
+    return user;
+  }, [supabase]);
 
   const fetchMembers = useCallback(
     async (groupId: string) => {
       try {
         const { data, error } = await withTimeout(
-          supabase
-            .from("group_members")
-            .select("*, profiles(*)")
-            .eq("group_id", groupId),
+          supabase.from("group_members").select("*, profiles(*)").eq("group_id", groupId),
           "Loading group members"
         );
 
@@ -68,35 +102,48 @@ export function useGroup() {
         return;
       }
 
-      // Get the user's group membership, joined with the group
-      const { data: membership, error: memberError } = await withTimeout(
+      const { data: membershipRows, error: membershipError } = await withTimeout(
         supabase
           .from("group_members")
-          .select("*, groups(*)")
+          .select("group_id, joined_at")
           .eq("user_id", user.id)
-          .maybeSingle(),
+          .order("joined_at", { ascending: false })
+          .limit(1),
         "Loading group membership"
       );
 
-      if (memberError) {
-        console.error("Error fetching group membership:", memberError);
+      if (membershipError) {
+        console.error("Error fetching group membership:", membershipError);
         toast.error("Could not load group membership.");
         setLoading(false);
         return;
       }
 
-      if (!membership || !membership.groups) {
+      const membership = membershipRows?.[0] as { group_id: string } | undefined;
+
+      if (!membership?.group_id) {
         setGroup(null);
         setMembers([]);
         setLoading(false);
         return;
       }
 
-      const groupData = membership.groups as unknown as Group;
-      setGroup(groupData);
+      const { data: groupData, error: groupError } = await withTimeout(
+        supabase.from("groups").select("*").eq("id", membership.group_id).maybeSingle(),
+        "Loading group details"
+      );
 
-      // Fetch all members of this group with their profiles
-      await fetchMembers(groupData.id);
+      if (groupError || !groupData) {
+        console.error("Error fetching group details:", groupError);
+        toast.error("Could not load group details.");
+        setGroup(null);
+        setMembers([]);
+        setLoading(false);
+        return;
+      }
+
+      setGroup(groupData as Group);
+      await fetchMembers(groupData.id as string);
     } catch (error) {
       console.error("Error in fetchGroup:", error);
       toast.error("Could not load group.");
@@ -122,7 +169,6 @@ export function useGroup() {
     };
   }, [fetchGroup]);
 
-  // Subscribe to realtime changes on group_members for this group
   useEffect(() => {
     if (!group) return;
 
@@ -148,19 +194,15 @@ export function useGroup() {
   }, [group, supabase, fetchMembers]);
 
   const createGroup = async (name: string) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await ensureOwnProfile();
 
     if (!user) {
-      console.error("Must be logged in to create a group");
       toast.error("Sign in to create a squad.");
       return null;
     }
 
     const today = format(new Date(), "yyyy-MM-dd");
 
-    // Create the group with retry in case invite_code collides.
     let newGroup: Group | null = null;
     let groupError: { code?: string; message?: string } | null = null;
 
@@ -190,35 +232,30 @@ export function useGroup() {
       toast.error("Could not create squad.");
       return null;
     }
+
     if (!newGroup) return null;
 
-    // Add the creator as admin
-    const { error: memberError } = await supabase
-      .from("group_members")
-      .insert({
-        group_id: newGroup.id,
-        user_id: user.id,
-        role: "admin",
-      });
+    const { error: memberError } = await supabase.from("group_members").insert({
+      group_id: newGroup.id,
+      user_id: user.id,
+      role: "admin",
+    });
 
-    if (memberError) {
+    if (memberError && memberError.code !== "23505") {
       console.error("Error adding creator as member:", memberError);
       toast.error("Created squad, but failed to add you as a member.");
       return null;
     }
 
-    // Create challenge_progress entry
-    const { error: progressError } = await supabase
-      .from("challenge_progress")
-      .insert({
-        user_id: user.id,
-        group_id: newGroup.id,
-        start_date: today,
-        current_day: 0,
-        is_active: true,
-      });
+    const { error: progressError } = await supabase.from("challenge_progress").insert({
+      user_id: user.id,
+      group_id: newGroup.id,
+      start_date: today,
+      current_day: 0,
+      is_active: true,
+    });
 
-    if (progressError) {
+    if (progressError && progressError.code !== "23505") {
       console.error("Error creating challenge progress:", progressError);
       toast.error("Created squad, but failed to initialize progress.");
       return null;
@@ -232,19 +269,15 @@ export function useGroup() {
   };
 
   const joinGroup = async (inviteCode: string) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await ensureOwnProfile();
 
     if (!user) {
-      console.error("Must be logged in to join a group");
       toast.error("Sign in to join a squad.");
       return null;
     }
 
     const today = format(new Date(), "yyyy-MM-dd");
 
-    // Find the group by invite code
     const { data: foundGroup, error: findError } = await supabase
       .from("groups")
       .select("*")
@@ -257,38 +290,26 @@ export function useGroup() {
       return null;
     }
 
-    // Add user to group_members (idempotent)
-    const { error: memberError } = await supabase
-      .from("group_members")
-      .upsert(
-        {
-          group_id: foundGroup.id,
-          user_id: user.id,
-          role: "member",
-        },
-        { onConflict: "group_id,user_id" }
-      );
+    const { error: memberError } = await supabase.from("group_members").insert({
+      group_id: foundGroup.id,
+      user_id: user.id,
+      role: "member",
+    });
 
-    if (memberError) {
+    if (memberError && memberError.code !== "23505") {
       console.error("Error joining group:", memberError);
       toast.error("Could not join this squad.");
       return null;
     }
 
-    // Create challenge_progress entry (idempotent)
-    const { error: progressError } = await supabase
-      .from("challenge_progress")
-      .upsert(
-        {
-          user_id: user.id,
-          group_id: foundGroup.id,
-          start_date: today,
-          is_active: true,
-        },
-        { onConflict: "user_id,group_id" }
-      );
+    const { error: progressError } = await supabase.from("challenge_progress").insert({
+      user_id: user.id,
+      group_id: foundGroup.id,
+      start_date: today,
+      is_active: true,
+    });
 
-    if (progressError) {
+    if (progressError && progressError.code !== "23505") {
       console.error("Error creating challenge progress:", progressError);
       toast.error("Joined squad, but failed to initialize progress.");
       return null;

@@ -12,6 +12,39 @@ interface InviteGroupInfo {
   memberCount: number | null;
 }
 
+async function ensureOwnProfile() {
+  const supabase = createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) return null;
+
+  const metadata = (user.user_metadata ?? {}) as {
+    full_name?: string;
+    name?: string;
+    avatar_url?: string;
+    picture?: string;
+  };
+
+  const { error } = await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      display_name: metadata.full_name ?? metadata.name ?? user.email?.split("@")[0] ?? "Player",
+      avatar_url: metadata.avatar_url ?? metadata.picture ?? null,
+    },
+    { onConflict: "id" }
+  );
+
+  if (error) {
+    console.error("Error ensuring profile:", error);
+    return null;
+  }
+
+  return user;
+}
+
 export default function JoinGroupPage({
   params,
 }: {
@@ -36,9 +69,9 @@ export default function JoinGroupPage({
 
       const supabase = createClient();
 
-      const [{ data: sessionData }, { data: groupData, error: groupError }] =
+      const [{ data: userData }, { data: groupData, error: groupError }] =
         await Promise.all([
-          supabase.auth.getSession(),
+          supabase.auth.getUser(),
           supabase
             .from("groups")
             .select("id, name, invite_code")
@@ -46,7 +79,7 @@ export default function JoinGroupPage({
             .maybeSingle(),
         ]);
 
-      setIsLoggedIn(Boolean(sessionData.session));
+      setIsLoggedIn(Boolean(userData.user));
 
       if (groupError || !groupData) {
         setGroupInfo(null);
@@ -82,7 +115,7 @@ export default function JoinGroupPage({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/join/${code}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(`/join/${code}`)}`,
       },
     });
 
@@ -99,13 +132,9 @@ export default function JoinGroupPage({
     setJoining(true);
     setError(null);
 
-    const supabase = createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const user = await ensureOwnProfile();
 
-    if (userError || !user) {
+    if (!user) {
       setJoining(false);
       setError("Please sign in first.");
       toast.error("Please sign in first.");
@@ -113,19 +142,18 @@ export default function JoinGroupPage({
     }
 
     const today = new Date().toISOString().slice(0, 10);
+    const supabase = createClient();
 
     const { error: membershipError } = await supabase
       .from("group_members")
-      .upsert(
-        {
-          group_id: groupInfo.id,
-          user_id: user.id,
-          role: "member",
-        },
-        { onConflict: "group_id,user_id" }
-      );
+      .insert({
+        group_id: groupInfo.id,
+        user_id: user.id,
+        role: "member",
+      });
 
-    if (membershipError) {
+    if (membershipError && membershipError.code !== "23505") {
+      console.error("Join group membership error:", membershipError);
       setJoining(false);
       setError("Could not join this squad.");
       toast.error("Could not join this squad.");
@@ -134,17 +162,15 @@ export default function JoinGroupPage({
 
     const { error: progressError } = await supabase
       .from("challenge_progress")
-      .upsert(
-        {
-          user_id: user.id,
-          group_id: groupInfo.id,
-          start_date: today,
-          is_active: true,
-        },
-        { onConflict: "user_id,group_id" }
-      );
+      .insert({
+        user_id: user.id,
+        group_id: groupInfo.id,
+        start_date: today,
+        is_active: true,
+      });
 
-    if (progressError) {
+    if (progressError && progressError.code !== "23505") {
+      console.error("Join challenge progress error:", progressError);
       setJoining(false);
       setError("Joined squad, but failed to initialize progress.");
       toast.error("Joined squad, but failed to initialize progress.");
