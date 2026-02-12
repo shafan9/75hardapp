@@ -101,18 +101,21 @@ export function useMemberStatus(groupId: string | undefined) {
         };
       });
 
-      // Sort: those who completed all tasks first, then by number of tasks completed desc
+      // Sort: those who completed all required tasks first, then by number of
+      // required tasks completed desc.
       statuses.sort((a, b) => {
-        const aAllDone = DEFAULT_TASK_KEYS.every((k) =>
+        const aCompleted = DEFAULT_TASK_KEYS.filter((k) =>
           a.completedTasks.includes(k)
-        );
-        const bAllDone = DEFAULT_TASK_KEYS.every((k) =>
+        ).length;
+        const bCompleted = DEFAULT_TASK_KEYS.filter((k) =>
           b.completedTasks.includes(k)
-        );
+        ).length;
+        const aAllDone = aCompleted >= DEFAULT_TASK_KEYS.length;
+        const bAllDone = bCompleted >= DEFAULT_TASK_KEYS.length;
 
         if (aAllDone && !bAllDone) return -1;
         if (!aAllDone && bAllDone) return 1;
-        return b.completedTasks.length - a.completedTasks.length;
+        return bCompleted - aCompleted;
       });
 
       setMemberStatuses(statuses);

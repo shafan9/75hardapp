@@ -93,22 +93,22 @@ export function useChecklist(groupId: string | undefined) {
   }, [supabase]);
 
   useEffect(() => {
-    if (!groupId) {
-      setLoading(false);
-      return;
-    }
-
     const loadAll = async () => {
       setLoading(true);
-      await Promise.all([
-        fetchCompletions(),
-        fetchProgress(),
-        fetchCustomTasks(),
-      ]);
+      await fetchCustomTasks();
+
+      if (groupId) {
+        await Promise.all([fetchCompletions(), fetchProgress()]);
+      } else {
+        setCompletions([]);
+        setTodayCompleted([]);
+        setProgress(null);
+      }
+
       setLoading(false);
     };
 
-    loadAll();
+    void loadAll();
   }, [groupId, fetchCompletions, fetchProgress, fetchCustomTasks]);
 
   // Subscribe to realtime changes on task_completions for this group

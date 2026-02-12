@@ -14,9 +14,13 @@ interface GroupGridProps {
 export function GroupGrid({ members, totalRequired }: GroupGridProps) {
   // Sort: completed all first, then by number completed desc
   const sorted = useMemo(() => {
+    const requiredCompletedCount = (member: MemberDayStatus) =>
+      DEFAULT_TASK_KEYS.filter((key) => member.completedTasks.includes(key))
+        .length;
+
     return [...members].sort((a, b) => {
-      const aCompleted = a.completedTasks.length;
-      const bCompleted = b.completedTasks.length;
+      const aCompleted = requiredCompletedCount(a);
+      const bCompleted = requiredCompletedCount(b);
       const aAllDone = aCompleted >= totalRequired;
       const bAllDone = bCompleted >= totalRequired;
 
@@ -32,7 +36,10 @@ export function GroupGrid({ members, totalRequired }: GroupGridProps) {
       className="grid grid-cols-2 md:grid-cols-3 gap-3"
     >
       {sorted.map((member) => {
-        const allDone = member.completedTasks.length >= totalRequired;
+        const requiredCompleted = DEFAULT_TASK_KEYS.filter((key) =>
+          member.completedTasks.includes(key)
+        ).length;
+        const allDone = requiredCompleted >= totalRequired;
         const profile = member.profile;
         const avatarFallback = (profile.display_name || "?")[0].toUpperCase();
 

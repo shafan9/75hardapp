@@ -111,24 +111,38 @@ export function useGroup() {
       return null;
     }
 
-    const inviteCode = generateInviteCode();
     const today = format(new Date(), "yyyy-MM-dd");
 
-    // Create the group
-    const { data: newGroup, error: groupError } = await supabase
-      .from("groups")
-      .insert({
-        name,
-        invite_code: inviteCode,
-        created_by: user.id,
-      })
-      .select()
-      .single();
+    // Create the group with retry in case invite_code collides.
+    let newGroup: Group | null = null;
+    let groupError: { code?: string; message?: string } | null = null;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const inviteCode = generateInviteCode();
+      const { data, error } = await supabase
+        .from("groups")
+        .insert({
+          name,
+          invite_code: inviteCode,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        newGroup = data as Group;
+        break;
+      }
+
+      groupError = error as { code?: string; message?: string };
+      if (groupError?.code !== "23505") break;
+    }
 
     if (groupError) {
       console.error("Error creating group:", groupError);
       return null;
     }
+    if (!newGroup) return null;
 
     // Add the creator as admin
     const { error: memberError } = await supabase
@@ -160,10 +174,10 @@ export function useGroup() {
       return null;
     }
 
-    setGroup(newGroup as Group);
+    setGroup(newGroup);
     await fetchMembers(newGroup.id);
 
-    return newGroup as Group;
+    return newGroup;
   };
 
   const joinGroup = async (inviteCode: string) => {
@@ -190,30 +204,35 @@ export function useGroup() {
       return null;
     }
 
-    // Add user to group_members
+    // Add user to group_members (idempotent)
     const { error: memberError } = await supabase
       .from("group_members")
-      .insert({
-        group_id: foundGroup.id,
-        user_id: user.id,
-        role: "member",
-      });
+      .upsert(
+        {
+          group_id: foundGroup.id,
+          user_id: user.id,
+          role: "member",
+        },
+        { onConflict: "group_id,user_id" }
+      );
 
     if (memberError) {
       console.error("Error joining group:", memberError);
       return null;
     }
 
-    // Create challenge_progress entry
+    // Create challenge_progress entry (idempotent)
     const { error: progressError } = await supabase
       .from("challenge_progress")
-      .insert({
-        user_id: user.id,
-        group_id: foundGroup.id,
-        start_date: today,
-        current_day: 0,
-        is_active: true,
-      });
+      .upsert(
+        {
+          user_id: user.id,
+          group_id: foundGroup.id,
+          start_date: today,
+          is_active: true,
+        },
+        { onConflict: "user_id,group_id" }
+      );
 
     if (progressError) {
       console.error("Error creating challenge progress:", progressError);
