@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_TASK_KEYS } from "@/lib/constants";
@@ -9,7 +9,7 @@ import type { MemberDayStatus, ChallengeProgress, Profile } from "@/lib/types";
 export function useMemberStatus(groupId: string | undefined) {
   const [memberStatuses, setMemberStatuses] = useState<MemberDayStatus[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const today = format(new Date(), "yyyy-MM-dd");
 

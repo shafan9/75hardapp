@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_TASK_KEYS } from "@/lib/constants";
 import type { UserAchievement, ChallengeProgress } from "@/lib/types";
@@ -11,7 +11,7 @@ export function useAchievements(
 ) {
   const [earned, setEarned] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchEarned = useCallback(async () => {
     if (!userId) {

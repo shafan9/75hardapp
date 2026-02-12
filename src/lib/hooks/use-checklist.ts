@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_TASK_KEYS, TOTAL_DAYS } from "@/lib/constants";
@@ -17,7 +17,7 @@ export function useChecklist(groupId: string | undefined) {
   const [customTasks, setCustomTasks] = useState<CustomTask[]>([]);
   const [progress, setProgress] = useState<ChallengeProgress | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
 
   const today = format(new Date(), "yyyy-MM-dd");

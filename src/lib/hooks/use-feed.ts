@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TaskCompletion, FeedReaction, FeedComment } from "@/lib/types";
 import { useToast } from "@/components/ui/toast-provider";
@@ -20,7 +20,7 @@ export function useFeed(groupId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
 
   const fetchFeed = useCallback(
