@@ -1,4 +1,5 @@
 import { format, formatDistanceToNow, isToday, isYesterday } from "date-fns";
+import { MOTIVATIONAL_QUOTES } from "@/lib/constants";
 
 export function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
@@ -39,4 +40,13 @@ export function getStreakMessage(day: number): string {
   if (day >= 3) return "Building momentum! 🚀";
   if (day >= 1) return "Let's go! 💥";
   return "Start your journey!";
+}
+
+export function getDailyMotivationalQuote(date: Date = new Date()) {
+  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayNumber = Math.floor(dayStart.getTime() / 86400000);
+  const index = ((dayNumber % MOTIVATIONAL_QUOTES.length) + MOTIVATIONAL_QUOTES.length) %
+    MOTIVATIONAL_QUOTES.length;
+
+  return MOTIVATIONAL_QUOTES[index];
 }

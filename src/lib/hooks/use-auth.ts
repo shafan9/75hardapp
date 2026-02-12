@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
+import { useToast } from "@/components/ui/toast-provider";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -12,6 +13,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const supabase = createClient();
+  const toast = useToast();
 
   const fetchProfile = useCallback(
     async (userId: string) => {
@@ -82,6 +84,7 @@ export function useAuth() {
 
     if (error) {
       console.error("Error signing in with Google:", error);
+      toast.error("Could not start Google sign-in.");
     }
   };
 
@@ -90,12 +93,14 @@ export function useAuth() {
 
     if (error) {
       console.error("Error signing out:", error);
+      toast.error("Failed to sign out.");
       return;
     }
 
     setUser(null);
     setProfile(null);
     router.push("/");
+    toast.success("Signed out.");
   };
 
   const updateProfile = async (updates: {
@@ -113,10 +118,12 @@ export function useAuth() {
 
     if (error) {
       console.error("Error updating profile:", error);
+      toast.error("Could not update profile.");
       return;
     }
 
     setProfile(data as Profile);
+    toast.success("Profile updated.");
   };
 
   return {

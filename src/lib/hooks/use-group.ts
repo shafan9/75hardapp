@@ -5,12 +5,14 @@ import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { generateInviteCode } from "@/lib/utils";
 import type { Group, GroupMember } from "@/lib/types";
+import { useToast } from "@/components/ui/toast-provider";
 
 export function useGroup() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const toast = useToast();
 
   const fetchGroup = useCallback(async () => {
     try {
@@ -32,6 +34,7 @@ export function useGroup() {
 
       if (memberError) {
         console.error("Error fetching group membership:", memberError);
+        toast.error("Could not load group membership.");
         setLoading(false);
         return;
       }
@@ -50,10 +53,11 @@ export function useGroup() {
       await fetchMembers(groupData.id);
     } catch (error) {
       console.error("Error in fetchGroup:", error);
+      toast.error("Could not load group.");
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, toast]);
 
   const fetchMembers = useCallback(
     async (groupId: string) => {
@@ -64,12 +68,13 @@ export function useGroup() {
 
       if (error) {
         console.error("Error fetching members:", error);
+        toast.error("Could not load group members.");
         return;
       }
 
       setMembers((data as unknown as GroupMember[]) ?? []);
     },
-    [supabase]
+    [supabase, toast]
   );
 
   useEffect(() => {
@@ -108,6 +113,7 @@ export function useGroup() {
 
     if (!user) {
       console.error("Must be logged in to create a group");
+      toast.error("Sign in to create a squad.");
       return null;
     }
 
@@ -140,6 +146,7 @@ export function useGroup() {
 
     if (groupError) {
       console.error("Error creating group:", groupError);
+      toast.error("Could not create squad.");
       return null;
     }
     if (!newGroup) return null;
@@ -155,6 +162,7 @@ export function useGroup() {
 
     if (memberError) {
       console.error("Error adding creator as member:", memberError);
+      toast.error("Created squad, but failed to add you as a member.");
       return null;
     }
 
@@ -171,12 +179,14 @@ export function useGroup() {
 
     if (progressError) {
       console.error("Error creating challenge progress:", progressError);
+      toast.error("Created squad, but failed to initialize progress.");
       return null;
     }
 
     setGroup(newGroup);
     await fetchMembers(newGroup.id);
 
+    toast.success("Squad created.");
     return newGroup;
   };
 
@@ -187,6 +197,7 @@ export function useGroup() {
 
     if (!user) {
       console.error("Must be logged in to join a group");
+      toast.error("Sign in to join a squad.");
       return null;
     }
 
@@ -201,6 +212,7 @@ export function useGroup() {
 
     if (findError || !foundGroup) {
       console.error("Group not found:", findError);
+      toast.error("Invite code is invalid.");
       return null;
     }
 
@@ -218,6 +230,7 @@ export function useGroup() {
 
     if (memberError) {
       console.error("Error joining group:", memberError);
+      toast.error("Could not join this squad.");
       return null;
     }
 
@@ -236,12 +249,14 @@ export function useGroup() {
 
     if (progressError) {
       console.error("Error creating challenge progress:", progressError);
+      toast.error("Joined squad, but failed to initialize progress.");
       return null;
     }
 
     setGroup(foundGroup as Group);
     await fetchMembers(foundGroup.id);
 
+    toast.success(`Joined ${foundGroup.name}.`);
     return foundGroup as Group;
   };
 

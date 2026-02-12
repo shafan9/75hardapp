@@ -10,7 +10,12 @@ import { useAchievements } from "@/lib/hooks/use-achievements";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { useChecklist } from "@/lib/hooks/use-checklist";
 import { useGroup } from "@/lib/hooks/use-group";
-import { getDayLabel, getProgressPercent, getStreakMessage } from "@/lib/utils";
+import {
+  getDailyMotivationalQuote,
+  getDayLabel,
+  getProgressPercent,
+  getStreakMessage,
+} from "@/lib/utils";
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -36,6 +41,7 @@ export default function DashboardPage() {
   const loading = authLoading || groupLoading || checklistLoading;
   const progressPercent = getProgressPercent(currentDay, TOTAL_DAYS);
   const streakMessage = getStreakMessage(currentDay);
+  const quoteOfTheDay = getDailyMotivationalQuote();
 
   if (loading) {
     return (
@@ -111,6 +117,21 @@ export default function DashboardPage() {
         >
           View Achievements
         </Link>
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-4"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08 }}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+          Daily Motivation
+        </p>
+        <p className="mt-2 text-sm text-text-primary">
+          "{quoteOfTheDay.text}"
+        </p>
+        <p className="mt-2 text-xs text-text-muted">- {quoteOfTheDay.author}</p>
       </motion.div>
 
       <DailyChecklist

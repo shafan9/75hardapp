@@ -65,6 +65,7 @@ export function Rankings({ members }: RankingsProps) {
             key={profile.id}
             variants={row}
             layoutId={`rank-${profile.id}`}
+            data-testid="ranking-row"
             className={cn(
               "relative flex items-center gap-3 rounded-2xl border p-3 transition-all",
               isFirst

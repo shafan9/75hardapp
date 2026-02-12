@@ -9,9 +9,11 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { useChecklist } from "@/lib/hooks/use-checklist";
 import { useGroup } from "@/lib/hooks/use-group";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast-provider";
 
 export default function ProfilePage() {
   const supabase = useMemo(() => createClient(), []);
+  const toast = useToast();
   const { user, profile, loading, updateProfile, signOut } = useAuth();
   const { group } = useGroup();
   const { customTasks, addCustomTask, removeCustomTask, currentDay } = useChecklist(group?.id);
@@ -88,9 +90,11 @@ export default function ProfilePage() {
 
     if (error) {
       console.error("Error saving settings:", error);
+      toast.error("Could not save notification settings.");
       return false;
     }
 
+    toast.success("Notification settings saved.");
     return true;
   }
 
@@ -124,6 +128,7 @@ export default function ProfilePage() {
   async function handleSignOut() {
     setSigningOut(true);
     await signOut();
+    setSigningOut(false);
   }
 
   if (loading) {

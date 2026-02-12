@@ -9,6 +9,7 @@ import type {
   ChallengeProgress,
   CustomTask,
 } from "@/lib/types";
+import { useToast } from "@/components/ui/toast-provider";
 
 export function useChecklist(groupId: string | undefined) {
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
@@ -17,6 +18,7 @@ export function useChecklist(groupId: string | undefined) {
   const [progress, setProgress] = useState<ChallengeProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const toast = useToast();
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -41,13 +43,14 @@ export function useChecklist(groupId: string | undefined) {
 
     if (error) {
       console.error("Error fetching completions:", error);
+      toast.error("Could not load today’s checklist.");
       return;
     }
 
     const completionData = (data ?? []) as TaskCompletion[];
     setCompletions(completionData);
     setTodayCompleted(completionData.map((c) => c.task_key));
-  }, [supabase, groupId, today]);
+  }, [supabase, groupId, today, toast]);
 
   const fetchProgress = useCallback(async () => {
     const {
@@ -65,11 +68,12 @@ export function useChecklist(groupId: string | undefined) {
 
     if (error) {
       console.error("Error fetching progress:", error);
+      toast.error("Could not load progress.");
       return;
     }
 
     setProgress(data as ChallengeProgress);
-  }, [supabase, groupId]);
+  }, [supabase, groupId, toast]);
 
   const fetchCustomTasks = useCallback(async () => {
     const {
@@ -86,11 +90,12 @@ export function useChecklist(groupId: string | undefined) {
 
     if (error) {
       console.error("Error fetching custom tasks:", error);
+      toast.error("Could not load custom tasks.");
       return;
     }
 
     setCustomTasks((data ?? []) as CustomTask[]);
-  }, [supabase]);
+  }, [supabase, toast]);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -159,6 +164,7 @@ export function useChecklist(groupId: string | undefined) {
 
       if (error) {
         console.error("Error advancing day:", error);
+        toast.error("Failed to update your challenge day.");
         return;
       }
 
@@ -167,8 +173,9 @@ export function useChecklist(groupId: string | undefined) {
           ? { ...prev, current_day: newDay, last_completed_date: today }
           : prev
       );
+      toast.success(`Day ${newDay} completed.`);
     },
-    [progress, groupId, today, supabase]
+    [progress, groupId, today, supabase, toast]
   );
 
   const toggleTask = async (taskKey: string) => {
@@ -192,6 +199,7 @@ export function useChecklist(groupId: string | undefined) {
 
       if (error) {
         console.error("Error removing completion:", error);
+        toast.error("Could not uncheck task.");
         return;
       }
 
@@ -213,6 +221,7 @@ export function useChecklist(groupId: string | undefined) {
 
       if (error) {
         console.error("Error adding completion:", error);
+        toast.error("Could not complete task.");
         return;
       }
 
@@ -242,6 +251,7 @@ export function useChecklist(groupId: string | undefined) {
 
     if (error) {
       console.error("Error adding note:", error);
+      toast.error("Could not save note.");
       return;
     }
 
@@ -269,10 +279,12 @@ export function useChecklist(groupId: string | undefined) {
 
     if (error) {
       console.error("Error adding custom task:", error);
+      toast.error("Could not add custom task.");
       return;
     }
 
     setCustomTasks((prev) => [...prev, data as CustomTask]);
+    toast.success("Custom task added.");
   };
 
   const removeCustomTask = async (id: string) => {
@@ -283,10 +295,12 @@ export function useChecklist(groupId: string | undefined) {
 
     if (error) {
       console.error("Error removing custom task:", error);
+      toast.error("Could not remove custom task.");
       return;
     }
 
     setCustomTasks((prev) => prev.filter((t) => t.id !== id));
+    toast.success("Custom task removed.");
   };
 
   return {

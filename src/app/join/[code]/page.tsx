@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ui/toast-provider";
 
 interface InviteGroupInfo {
   id: string;
@@ -18,6 +19,7 @@ export default function JoinGroupPage({
 }) {
   const { code } = use(params);
   const router = useRouter();
+  const toast = useToast();
 
   const [groupInfo, setGroupInfo] = useState<InviteGroupInfo | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -87,6 +89,7 @@ export default function JoinGroupPage({
     if (error) {
       setSigningIn(false);
       setError("Could not start sign-in flow.");
+      toast.error("Could not start sign-in flow.");
     }
   }
 
@@ -105,6 +108,7 @@ export default function JoinGroupPage({
     if (userError || !user) {
       setJoining(false);
       setError("Please sign in first.");
+      toast.error("Please sign in first.");
       return;
     }
 
@@ -124,6 +128,7 @@ export default function JoinGroupPage({
     if (membershipError) {
       setJoining(false);
       setError("Could not join this squad.");
+      toast.error("Could not join this squad.");
       return;
     }
 
@@ -142,10 +147,12 @@ export default function JoinGroupPage({
     if (progressError) {
       setJoining(false);
       setError("Joined squad, but failed to initialize progress.");
+      toast.error("Joined squad, but failed to initialize progress.");
       return;
     }
 
     setJoined(true);
+    toast.success(`Joined ${groupInfo.name}.`);
     setTimeout(() => router.push("/dashboard"), 1200);
   }
 

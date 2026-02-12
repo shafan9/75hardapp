@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TaskCompletion, FeedReaction, FeedComment } from "@/lib/types";
+import { useToast } from "@/components/ui/toast-provider";
 
 interface FeedItem extends TaskCompletion {
   reactions: FeedReaction[];
@@ -20,6 +21,7 @@ export function useFeed(groupId: string | undefined) {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const supabase = createClient();
+  const toast = useToast();
 
   const fetchFeed = useCallback(
     async (pageNum: number = 0, append: boolean = false) => {
@@ -45,6 +47,7 @@ export function useFeed(groupId: string | undefined) {
 
       if (completionsError) {
         console.error("Error fetching feed:", completionsError);
+        toast.error("Could not load feed.");
         setLoading(false);
         return;
       }
@@ -124,7 +127,7 @@ export function useFeed(groupId: string | undefined) {
 
       setLoading(false);
     },
-    [supabase, groupId]
+    [supabase, groupId, toast]
   );
 
   useEffect(() => {
@@ -212,6 +215,7 @@ export function useFeed(groupId: string | undefined) {
 
     if (error) {
       console.error("Error adding reaction:", error);
+      toast.error("Could not add reaction.");
       return;
     }
 
@@ -261,6 +265,7 @@ export function useFeed(groupId: string | undefined) {
 
     if (error) {
       console.error("Error removing reaction:", error);
+      toast.error("Could not remove reaction.");
       return;
     }
 
@@ -302,6 +307,7 @@ export function useFeed(groupId: string | undefined) {
 
     if (error) {
       console.error("Error adding comment:", error);
+      toast.error("Could not add comment.");
       return;
     }
 
@@ -332,6 +338,7 @@ export function useFeed(groupId: string | undefined) {
 
     if (error) {
       console.error("Error loading comments:", error);
+      toast.error("Could not load comments.");
       return;
     }
 

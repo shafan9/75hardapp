@@ -39,19 +39,36 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const pathname = request.nextUrl.pathname;
+  const isDashboardPath = pathname.startsWith("/dashboard");
+  const isGroupPath = pathname.startsWith("/dashboard/group");
 
   // Redirect unauthenticated users away from dashboard
-  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
+  if (!user && isDashboardPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
   // Redirect authenticated users away from landing
-  if (user && request.nextUrl.pathname === "/") {
+  if (user && pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // Onboarding guard: users without a group must land on /dashboard/group first.
+  if (user && isDashboardPath && !isGroupPath) {
+    const { count, error } = await supabase
+      .from("group_members")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (!error && (count ?? 0) === 0) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard/group";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

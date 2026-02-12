@@ -107,6 +107,7 @@ export function FeedCard({
             <motion.button
               key={emoji}
               onClick={() => handleReact(emoji)}
+              aria-label={`React with ${emoji}`}
               whileTap={{ scale: 1.4 }}
               animate={
                 tappedEmoji === emoji
@@ -132,6 +133,7 @@ export function FeedCard({
         {/* Comment button */}
         <button
           onClick={onComment}
+          aria-label="Open comments"
           className="ml-auto flex items-center gap-1.5 rounded-full bg-bg-surface px-3 py-1 text-sm text-text-muted hover:bg-bg-card-hover hover:text-text-secondary transition-colors"
         >
           <svg

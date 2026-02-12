@@ -1,5 +1,30 @@
 const CACHE_NAME = "75squad-v1";
 const STATIC_ASSETS = ["/", "/dashboard", "/manifest.json"];
+const DAILY_MOTIVATION_QUOTES = [
+  "Small steps every day lead to massive results over time.",
+  "You do not have to be extreme, just consistent.",
+  "When you feel like quitting, remember why you started.",
+  "Do something today your future self will thank you for.",
+  "Progress, not perfection.",
+  "The body achieves what the mind believes.",
+  "You can do hard things.",
+  "No shortcuts. Just work.",
+  "Your habits shape your future.",
+  "One task at a time. One day at a time.",
+  "Results happen over time, not overnight.",
+  "Action cures fear.",
+  "Done is better than perfect.",
+  "Future you is watching.",
+  "Stay committed. Stay relentless.",
+];
+
+function getDailyMotivationQuote() {
+  const dayNumber = Math.floor(Date.now() / 86400000);
+  const index =
+    ((dayNumber % DAILY_MOTIVATION_QUOTES.length) + DAILY_MOTIVATION_QUOTES.length) %
+    DAILY_MOTIVATION_QUOTES.length;
+  return DAILY_MOTIVATION_QUOTES[index];
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -44,7 +69,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {
     title: "75 Squad",
-    body: "Time to check in!",
+    body: getDailyMotivationQuote(),
     icon: "/icons/icon-192.png",
   };
 
