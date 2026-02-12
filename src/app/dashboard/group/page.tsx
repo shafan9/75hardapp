@@ -85,11 +85,14 @@ export default function GroupPage() {
           <div className="mt-4 space-y-3">
             <input
               type="text"
+              name="squad_name"
+              aria-label="Squad name"
+              autoComplete="off"
               placeholder="Squad name"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()}
-              className="w-full rounded-xl border border-border bg-bg-surface px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
+              className="w-full rounded-xl border border-border bg-bg-surface px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
               maxLength={48}
             />
 
@@ -99,7 +102,7 @@ export default function GroupPage() {
               className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
               whileTap={{ scale: 0.98 }}
             >
-              {creating ? "Creating..." : "Create Squad"}
+              {creating ? "Creating…" : "Create Squad"}
             </motion.button>
 
             {error && <p className="text-center text-sm text-accent-red">{error}</p>}

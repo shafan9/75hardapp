@@ -69,6 +69,9 @@ export function ProfileCard({
               <img
                 src={profile.avatar_url}
                 alt={profile.display_name || "User"}
+                width={96}
+                height={96}
+                loading="lazy"
                 className="h-full w-full rounded-full object-cover"
               />
             ) : (
@@ -90,15 +93,18 @@ export function ProfileCard({
               >
                 <input
                   type="text"
+                  name="profile_name"
+                  aria-label="Profile name"
+                  autoComplete="off"
+                  spellCheck={false}
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSaveName();
                     if (e.key === "Escape") setIsEditing(false);
                   }}
-                  autoFocus
                   maxLength={30}
-                  className="rounded-lg border border-accent-violet bg-bg-primary px-3 py-1.5 text-center text-lg font-bold text-text-primary focus:outline-none"
+                  className="rounded-lg border border-accent-violet bg-bg-primary px-3 py-1.5 text-center text-lg font-bold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                 />
                 <button
                   onClick={handleSaveName}

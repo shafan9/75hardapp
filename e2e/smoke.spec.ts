@@ -54,7 +54,7 @@ test.describe("75 Squad smoke", () => {
     await expect(page.getByText(/ALL TASKS DONE!/i)).toBeVisible();
 
     await page.goto("/dashboard/feed");
-    await expect(page.getByText(/Live Feed/i)).toBeVisible();
+    await expect(page.getByText(/Live activity from your group/i)).toBeVisible();
 
     const feedCard = page.locator(".glass-card", { hasText: "Completed" }).first();
     await expect(feedCard).toBeVisible();
@@ -62,7 +62,7 @@ test.describe("75 Squad smoke", () => {
     await feedCard.getByRole("button", { name: "React with 🔥" }).click();
     await feedCard.getByRole("button", { name: "Open comments" }).click();
 
-    await page.getByPlaceholder("Write a comment...").fill(commentText);
+    await page.getByPlaceholder("Write a comment…").fill(commentText);
     await page.getByRole("button", { name: "Send comment" }).click();
     await expect(page.getByText(commentText)).toBeVisible();
 

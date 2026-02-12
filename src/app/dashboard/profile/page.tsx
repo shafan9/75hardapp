@@ -324,11 +324,14 @@ export default function ProfilePage() {
           <div className="flex w-full max-w-xs items-center gap-2">
             <input
               type="text"
+              name="display_name"
+              aria-label="Display name"
+              autoComplete="off"
+              spellCheck={false}
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && saveName()}
-              autoFocus
-              className="flex-1 rounded-xl border border-border bg-bg-surface px-3 py-2 text-center text-sm text-text-primary focus:border-accent-violet/50 focus:outline-none"
+              className="flex-1 rounded-xl border border-border bg-bg-surface px-3 py-2 text-center text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
             />
             <motion.button
               onClick={saveName}
@@ -423,11 +426,15 @@ export default function ProfilePage() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Task name..."
+                  name="profile_custom_task_name"
+                  aria-label="Custom task name"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Task name…"
                   value={newTaskName}
                   onChange={(e) => setNewTaskName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && void handleAddCustomTask()}
-                  className="flex-1 rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
+                  className="flex-1 rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                 />
                 <motion.button
                   onClick={() => {
@@ -456,6 +463,7 @@ export default function ProfilePage() {
                 onClick={() => {
                   void removeCustomTask(task.id);
                 }}
+                aria-label={"Remove " + task.name}
                 className="p-1 text-sm text-text-muted transition-colors hover:text-accent-red"
                 whileTap={{ scale: 0.9 }}
               >
@@ -492,6 +500,9 @@ export default function ProfilePage() {
               onClick={() => {
                 void toggleInApp();
               }}
+              aria-label="Toggle in-app alerts"
+              role="switch"
+              aria-checked={inAppEnabled}
               disabled={savingSettings}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
@@ -517,6 +528,9 @@ export default function ProfilePage() {
               onClick={() => {
                 void togglePush();
               }}
+              aria-label="Toggle push notifications"
+              role="switch"
+              aria-checked={pushEnabled}
               disabled={savingSettings}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
@@ -544,6 +558,9 @@ export default function ProfilePage() {
               onClick={() => {
                 void toggleEmail();
               }}
+              aria-label="Toggle email notifications"
+              role="switch"
+              aria-checked={emailEnabled}
               disabled={savingSettings}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
@@ -571,6 +588,9 @@ export default function ProfilePage() {
               onClick={() => {
                 void toggleSms();
               }}
+              aria-label="Toggle SMS notifications"
+              role="switch"
+              aria-checked={smsEnabled}
               disabled={savingSettings}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
@@ -594,10 +614,13 @@ export default function ProfilePage() {
               <span className="text-xs font-medium text-text-secondary">Phone (E.164 for SMS)</span>
               <input
                 type="tel"
+                name="phone_e164"
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="+15551234567"
                 value={phoneE164}
                 onChange={(event) => setPhoneE164(event.target.value)}
-                className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
+                className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
               />
             </label>
 
@@ -606,10 +629,13 @@ export default function ProfilePage() {
                 <span className="text-xs font-medium text-text-secondary">Timezone</span>
                 <input
                   type="text"
+                  name="timezone"
+                  autoComplete="off"
+                  spellCheck={false}
                   placeholder="America/New_York"
                   value={timezone}
                   onChange={(event) => setTimezone(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                 />
               </label>
 
@@ -617,9 +643,11 @@ export default function ProfilePage() {
                 <span className="text-xs font-medium text-text-secondary">Daily reminder time</span>
                 <input
                   type="time"
+                  name="reminder_time"
+                  aria-label="Daily reminder time"
                   value={reminderTime}
                   onChange={(event) => setReminderTime(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                 />
               </label>
             </div>
@@ -643,7 +671,7 @@ export default function ProfilePage() {
               disabled={sendingTestChannel !== null}
               className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
             >
-              {sendingTestChannel === "in_app" ? "Sending..." : "Test In-App"}
+              {sendingTestChannel === "in_app" ? "Sending…" : "Test In-App"}
             </button>
             <button
               onClick={() => {
@@ -652,7 +680,7 @@ export default function ProfilePage() {
               disabled={sendingTestChannel !== null}
               className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
             >
-              {sendingTestChannel === "push" ? "Sending..." : "Test Push"}
+              {sendingTestChannel === "push" ? "Sending…" : "Test Push"}
             </button>
             <button
               onClick={() => {
@@ -661,7 +689,7 @@ export default function ProfilePage() {
               disabled={sendingTestChannel !== null}
               className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
             >
-              {sendingTestChannel === "email" ? "Sending..." : "Test Email"}
+              {sendingTestChannel === "email" ? "Sending…" : "Test Email"}
             </button>
             <button
               onClick={() => {
@@ -670,7 +698,7 @@ export default function ProfilePage() {
               disabled={sendingTestChannel !== null}
               className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
             >
-              {sendingTestChannel === "sms" ? "Sending..." : "Test SMS"}
+              {sendingTestChannel === "sms" ? "Sending…" : "Test SMS"}
             </button>
           </div>
         </div>
@@ -684,7 +712,7 @@ export default function ProfilePage() {
         className="w-full rounded-2xl border border-accent-red/30 py-3 text-sm font-semibold text-accent-red transition-colors hover:bg-accent-red/10 disabled:opacity-50"
         whileTap={{ scale: 0.98 }}
       >
-        {signingOut ? "Signing out..." : "Sign Out 👋"}
+        {signingOut ? "Signing out…" : "Sign Out 👋"}
       </motion.button>
     </div>
   );

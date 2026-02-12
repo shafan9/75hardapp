@@ -26,6 +26,8 @@ export function Badge({ achievement, earned, earnedAt }: BadgeProps) {
       <motion.button
         onClick={() => setShowPopover(!showPopover)}
         onBlur={() => setShowPopover(false)}
+        aria-label={achievement.label + " details"}
+        aria-expanded={showPopover}
         whileTap={{ scale: 0.9 }}
         animate={
           earned
@@ -45,7 +47,7 @@ export function Badge({ achievement, earned, earnedAt }: BadgeProps) {
             : undefined
         }
         className={cn(
-          "relative flex items-center justify-center rounded-full transition-all focus:outline-none",
+          "relative flex items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary",
           earned ? "h-16 w-16" : "h-14 w-14"
         )}
         style={

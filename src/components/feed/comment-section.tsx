@@ -53,6 +53,9 @@ export function CommentSection({
                       <img
                         src={profile.avatar_url}
                         alt={profile.display_name || "User"}
+                        width={28}
+                        height={28}
+                        loading="lazy"
                         className="h-full w-full rounded-full object-cover"
                       />
                     ) : (
@@ -96,12 +99,15 @@ export function CommentSection({
       <div className="flex gap-2">
         <input
           type="text"
+          name="comment"
+          aria-label="Write a comment"
+          autoComplete="off"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSubmit()}
-          placeholder="Write a comment..."
+          placeholder="Write a comment…"
           disabled={loading}
-          className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus:outline-none disabled:opacity-50"
+          className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary disabled:opacity-50"
         />
         <button
           onClick={handleSubmit}

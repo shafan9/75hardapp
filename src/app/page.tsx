@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_TASKS } from "@/lib/constants";
 
@@ -14,7 +15,7 @@ function FloatingEmoji({ emoji, index }: { emoji: string; index: number }) {
 
   return (
     <motion.div
-      className="absolute text-3xl pointer-events-none select-none opacity-20"
+      className="pointer-events-none absolute text-3xl opacity-20"
       style={{ left: `${randomX}%` }}
       initial={{ y: "100vh", rotate: 0 }}
       animate={{
@@ -25,6 +26,7 @@ function FloatingEmoji({ emoji, index }: { emoji: string; index: number }) {
         y: { duration: randomDuration, repeat: Infinity, delay: randomDelay, ease: "linear" },
         rotate: { duration: 3, repeat: Infinity, delay: randomDelay },
       }}
+      aria-hidden="true"
     >
       {emoji}
     </motion.div>
@@ -46,113 +48,126 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-hidden flex flex-col items-center justify-center px-6">
-      {/* Floating background emojis */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+    <div className="relative flex min-h-dvh flex-col items-center overflow-hidden px-6 pb-12 pt-8 sm:pt-12">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
         {FLOATING_EMOJIS.map((emoji, i) => (
           <FloatingEmoji key={i} emoji={emoji} index={i} />
         ))}
       </div>
 
-      {/* Gradient orbs */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-violet/20 rounded-full blur-[120px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-pink/20 rounded-full blur-[120px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-accent-amber/10 rounded-full blur-[100px]" />
+      <div className="pointer-events-none fixed inset-0" aria-hidden="true">
+        <div className="absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-accent-violet/20 blur-[120px]" />
+        <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-accent-pink/20 blur-[120px]" />
+        <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-amber/10 blur-[100px]" />
       </div>
 
-      {/* Main content */}
       <motion.div
-        className="relative z-10 flex flex-col items-center gap-8 max-w-lg w-full"
+        className="relative z-10 mx-auto flex w-full max-w-2xl flex-col gap-8"
         initial="hidden"
         animate="visible"
         variants={{
           hidden: {},
-          visible: { transition: { staggerChildren: 0.12 } },
+          visible: { transition: { staggerChildren: 0.1 } },
         }}
       >
-        {/* Logo / Title */}
-        <motion.div
-          className="text-center"
+        <motion.header
+          className="space-y-4 text-center"
           variants={{
-            hidden: { opacity: 0, y: 30, scale: 0.9 },
-            visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 200, damping: 20 } },
+            hidden: { opacity: 0, y: 24 },
+            visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 180, damping: 24 } },
           }}
         >
-          <h1 className="text-6xl sm:text-7xl font-black gradient-text leading-tight tracking-tight">
+          <h1 className="gradient-text text-balance text-6xl font-black leading-tight tracking-tight sm:text-7xl">
             75 Squad
           </h1>
-          <motion.p
-            className="text-xl sm:text-2xl text-text-secondary mt-3 font-medium"
-            variants={{
-              hidden: { opacity: 0, y: 10 },
-              visible: { opacity: 1, y: 0, transition: { delay: 0.2 } },
-            }}
-          >
-            Crush 75 Hard Together 🔥
-          </motion.p>
-        </motion.div>
+          <p className="text-balance text-xl font-medium text-text-secondary sm:text-2xl">
+            Crush 75 Hard with a squad that keeps you accountable every single day.
+          </p>
+          <p className="mx-auto max-w-xl text-sm text-text-secondary sm:text-base">
+            Track daily tasks, build streaks, celebrate wins, and send real reminders across in-app,
+            push, email, and SMS so nobody drifts off plan.
+          </p>
+        </motion.header>
 
-        {/* Challenge items */}
-        <motion.div
-          className="w-full glass-card p-6 space-y-3"
+        <motion.section
+          className="glass-card space-y-3 p-6"
           variants={{
-            hidden: { opacity: 0, y: 20 },
+            hidden: { opacity: 0, y: 18 },
             visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 150, damping: 20 } },
           }}
+          aria-label="Daily tasks"
         >
-          <p className="text-sm text-text-muted uppercase tracking-wider font-semibold mb-4">
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wider text-text-muted">
             The 5 Daily Tasks
           </p>
           {DEFAULT_TASKS.map((task, index) => (
             <motion.div
               key={task.key}
-              className="flex items-center gap-3 p-3 rounded-xl bg-bg-surface/50 border border-border/50"
-              initial={{ opacity: 0, x: -20 }}
+              className="flex items-center gap-3 rounded-xl border border-border/50 bg-bg-surface/50 p-3"
+              initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 + index * 0.08, type: "spring", stiffness: 200, damping: 25 }}
+              transition={{ delay: 0.35 + index * 0.06, type: "spring", stiffness: 200, damping: 25 }}
             >
-              <span className="text-2xl">{task.emoji}</span>
-              <div className="flex-1">
-                <p className="text-text-primary font-semibold text-sm">{task.label}</p>
-                <p className="text-text-muted text-xs">{task.description}</p>
+              <span className="text-2xl" aria-hidden="true">{task.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-text-primary">{task.label}</p>
+                <p className="truncate text-xs text-text-muted">{task.description}</p>
               </div>
               {"optional" in task && task.optional && (
-                <span className="text-[10px] uppercase tracking-wider text-text-muted bg-bg-card px-2 py-0.5 rounded-full border border-border">
+                <span className="rounded-full border border-border bg-bg-card px-2 py-0.5 text-[10px] uppercase tracking-wider text-text-secondary">
                   Optional
                 </span>
               )}
             </motion.div>
           ))}
-        </motion.div>
+        </motion.section>
 
-        {/* Sign in button */}
+        <motion.section
+          className="glass-card space-y-3 p-5"
+          variants={{
+            hidden: { opacity: 0, y: 18 },
+            visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 150, damping: 20 } },
+          }}
+        >
+          <h2 className="text-lg font-bold text-text-primary">Why Teams Finish Stronger</h2>
+          <p className="text-sm leading-relaxed text-text-secondary">
+            Solo habit trackers lose momentum when the week gets messy. 75 Squad keeps momentum visible.
+            Everyone in your group sees progress, daily completions, and streak movement in one place, which
+            removes guesswork and increases follow-through.
+          </p>
+          <p className="text-sm leading-relaxed text-text-secondary">
+            Invite links make onboarding quick. Shared feeds make effort visible. Real notification channels
+            make reminders dependable. The result is a challenge flow that is fast to learn, easy to use on
+            mobile, and practical for teams that want consistency for the full 75 days.
+          </p>
+        </motion.section>
+
         <motion.div
           className="w-full"
           variants={{
-            hidden: { opacity: 0, y: 20 },
+            hidden: { opacity: 0, y: 18 },
             visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 150, damping: 20 } },
           }}
         >
           <motion.button
             onClick={handleSignIn}
             disabled={isLoading}
-            className="w-full py-4 px-6 rounded-2xl font-bold text-lg bg-gradient-to-r from-accent-violet via-accent-pink to-accent-amber text-white shadow-lg disabled:opacity-60 cursor-pointer"
-            whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(124, 58, 237, 0.4)" }}
+            className="w-full cursor-pointer rounded-2xl bg-gradient-to-r from-accent-violet via-accent-pink to-accent-amber px-6 py-4 text-lg font-bold text-white shadow-lg transition-opacity hover:opacity-95 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
+            whileHover={{ scale: 1.01, boxShadow: "0 0 30px rgba(124, 58, 237, 0.4)" }}
             whileTap={{ scale: 0.98 }}
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <motion.span
-                  className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                  className="inline-block h-5 w-5 rounded-full border-2 border-white/30 border-t-white"
                   animate={{ rotate: 360 }}
                   transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                 />
-                Signing in...
+                Signing in…
               </span>
             ) : (
               <span className="flex items-center justify-center gap-3">
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
                   <path
                     fill="currentColor"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -176,16 +191,28 @@ export default function LandingPage() {
           </motion.button>
         </motion.div>
 
-        {/* Footer tagline */}
-        <motion.p
-          className="text-text-muted text-sm text-center"
+        <motion.footer
+          className="space-y-3 pb-2 text-center"
           variants={{
             hidden: { opacity: 0 },
-            visible: { opacity: 1, transition: { delay: 1 } },
+            visible: { opacity: 1, transition: { delay: 0.8 } },
           }}
         >
-          Join your squad. Stay accountable. Finish strong. 💪
-        </motion.p>
+          <p className="text-sm text-text-muted">Join your squad. Stay accountable. Finish strong.</p>
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-text-secondary">
+            <Link href="/about" className="hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70">
+              About
+            </Link>
+            <span aria-hidden="true">•</span>
+            <Link href="/contact" className="hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70">
+              Contact
+            </Link>
+            <span aria-hidden="true">•</span>
+            <Link href="/privacy" className="hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70">
+              Privacy
+            </Link>
+          </div>
+        </motion.footer>
       </motion.div>
     </div>
   );

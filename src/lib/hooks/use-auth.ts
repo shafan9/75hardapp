@@ -32,6 +32,34 @@ export function useAuth() {
     }
   }, []);
 
+  const ensureProfile = useCallback(
+    async (userId: string) => {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+
+      const metadata = (authUser?.user_metadata ?? {}) as {
+        full_name?: string;
+        name?: string;
+      };
+
+      const fallbackName =
+        metadata.full_name ??
+        metadata.name ??
+        authUser?.email?.split("@")[0] ??
+        "Player";
+
+      await supabase.from("profiles").upsert(
+        {
+          id: userId,
+          display_name: fallbackName,
+        },
+        { onConflict: "id" }
+      );
+    },
+    [supabase]
+  );
+
   const fetchProfile = useCallback(
     async (userId: string) => {
       try {
@@ -45,6 +73,22 @@ export function useAuth() {
         );
 
         if (error) {
+          const errorCode = (error as { code?: string }).code;
+          if (errorCode === "PGRST116") {
+            await ensureProfile(userId);
+
+            const { data: recoveredProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userId)
+              .single();
+
+            if (recoveredProfile) {
+              setProfile(recoveredProfile as Profile);
+            }
+            return;
+          }
+
           console.error("Error fetching profile:", error);
           return;
         }
@@ -54,7 +98,7 @@ export function useAuth() {
         console.error("Error loading profile:", error);
       }
     },
-    [supabase, withTimeout]
+    [supabase, withTimeout, ensureProfile]
   );
 
   useEffect(() => {

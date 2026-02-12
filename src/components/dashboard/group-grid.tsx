@@ -52,7 +52,7 @@ export function GroupGrid({ members, totalRequired }: GroupGridProps) {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             className={cn(
-              "rounded-2xl border p-3 transition-all",
+              "rounded-2xl border p-3 transition-colors",
               allDone
                 ? "border-accent-emerald/30 bg-accent-emerald/5"
                 : "border-border bg-bg-card"
@@ -73,6 +73,9 @@ export function GroupGrid({ members, totalRequired }: GroupGridProps) {
                   <img
                     src={profile.avatar_url}
                     alt={profile.display_name || "User"}
+                    width={32}
+                    height={32}
+                    loading="lazy"
                     className="h-full w-full rounded-full object-cover"
                   />
                 ) : (
@@ -110,7 +113,7 @@ export function GroupGrid({ members, totalRequired }: GroupGridProps) {
                     animate={completed ? { scale: [1, 1.2, 1] } : { scale: 1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 15 }}
                     className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded-full transition-all",
+                      "flex h-5 w-5 items-center justify-center rounded-full transition-colors",
                       completed
                         ? "bg-accent-emerald"
                         : "border border-border-light bg-transparent"

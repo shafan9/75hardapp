@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -9,6 +10,7 @@ import { useToast } from "@/components/ui/toast-provider";
 interface InviteGroupInfo {
   id: string;
   name: string;
+  inviteCode: string;
   memberCount: number | null;
 }
 
@@ -45,6 +47,58 @@ async function ensureOwnProfile() {
   return user;
 }
 
+async function lookupInviteGroup(code: string): Promise<InviteGroupInfo | null> {
+  const supabase = createClient();
+
+  const { data: rpcData, error: rpcError } = await supabase
+    .rpc("lookup_group_by_invite_code", { code })
+    .maybeSingle();
+
+  const rpcRow = rpcData as
+    | { id: string; name: string; invite_code: string; member_count: number | null }
+    | null;
+
+  if (!rpcError && rpcRow?.id) {
+
+    return {
+      id: rpcRow.id,
+      name: rpcRow.name,
+      inviteCode: rpcRow.invite_code,
+      memberCount: typeof rpcRow.member_count === "number" ? rpcRow.member_count : null,
+    };
+  }
+
+  const rpcErrorCode = (rpcError as { code?: string } | null)?.code;
+  if (rpcError && rpcErrorCode !== "PGRST202" && rpcErrorCode !== "42883") {
+    console.warn("Invite lookup RPC error:", rpcError);
+  }
+
+  const { data: groupData, error: groupError } = await supabase
+    .from("groups")
+    .select("id, name, invite_code")
+    .eq("invite_code", code)
+    .maybeSingle();
+
+  if (groupError || !groupData) return null;
+
+  let memberCount: number | null = null;
+  const { count } = await supabase
+    .from("group_members")
+    .select("id", { count: "exact", head: true })
+    .eq("group_id", groupData.id);
+
+  if (typeof count === "number") {
+    memberCount = count;
+  }
+
+  return {
+    id: groupData.id,
+    name: groupData.name,
+    inviteCode: groupData.invite_code,
+    memberCount,
+  };
+}
+
 export default function JoinGroupPage({
   params,
 }: {
@@ -68,40 +122,14 @@ export default function JoinGroupPage({
       setError(null);
 
       const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      const [{ data: userData }, { data: groupData, error: groupError }] =
-        await Promise.all([
-          supabase.auth.getUser(),
-          supabase
-            .from("groups")
-            .select("id, name, invite_code")
-            .eq("invite_code", code)
-            .maybeSingle(),
-        ]);
+      setIsLoggedIn(Boolean(user));
 
-      setIsLoggedIn(Boolean(userData.user));
-
-      if (groupError || !groupData) {
-        setGroupInfo(null);
-        setLoadingPreview(false);
-        return;
-      }
-
-      let memberCount: number | null = null;
-      const { count } = await supabase
-        .from("group_members")
-        .select("id", { count: "exact", head: true })
-        .eq("group_id", groupData.id);
-
-      if (typeof count === "number") {
-        memberCount = count;
-      }
-
-      setGroupInfo({
-        id: groupData.id,
-        name: groupData.name,
-        memberCount,
-      });
+      const invite = await lookupInviteGroup(code);
+      setGroupInfo(invite);
       setLoadingPreview(false);
     }
 
@@ -144,13 +172,11 @@ export default function JoinGroupPage({
     const today = new Date().toISOString().slice(0, 10);
     const supabase = createClient();
 
-    const { error: membershipError } = await supabase
-      .from("group_members")
-      .insert({
-        group_id: groupInfo.id,
-        user_id: user.id,
-        role: "member",
-      });
+    const { error: membershipError } = await supabase.from("group_members").insert({
+      group_id: groupInfo.id,
+      user_id: user.id,
+      role: "member",
+    });
 
     if (membershipError && membershipError.code !== "23505") {
       console.error("Join group membership error:", membershipError);
@@ -160,14 +186,12 @@ export default function JoinGroupPage({
       return;
     }
 
-    const { error: progressError } = await supabase
-      .from("challenge_progress")
-      .insert({
-        user_id: user.id,
-        group_id: groupInfo.id,
-        start_date: today,
-        is_active: true,
-      });
+    const { error: progressError } = await supabase.from("challenge_progress").insert({
+      user_id: user.id,
+      group_id: groupInfo.id,
+      start_date: today,
+      is_active: true,
+    });
 
     if (progressError && progressError.code !== "23505") {
       console.error("Join challenge progress error:", progressError);
@@ -189,6 +213,8 @@ export default function JoinGroupPage({
           className="h-8 w-8 rounded-full border-2 border-accent-violet/30 border-t-accent-violet"
           animate={{ rotate: 360 }}
           transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+          role="status"
+          aria-label="Loading invite"
         />
       </div>
     );
@@ -203,12 +229,12 @@ export default function JoinGroupPage({
           <p className="text-sm text-text-secondary">
             This invite link is missing or expired.
           </p>
-          <button
-            onClick={() => router.push("/")}
-            className="rounded-xl bg-bg-surface px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-bg-card-hover"
+          <Link
+            href="/"
+            className="inline-flex rounded-xl bg-bg-surface px-4 py-2 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
           >
             Back Home
-          </button>
+          </Link>
         </div>
       </div>
     );
@@ -239,7 +265,7 @@ export default function JoinGroupPage({
               : "Join this squad"}
           </p>
           <p className="text-xs text-text-muted">
-            Invite code: <span className="font-mono text-text-secondary">{code}</span>
+            Invite code: <span className="font-mono text-text-secondary">{groupInfo.inviteCode}</span>
           </p>
         </div>
 
@@ -248,7 +274,7 @@ export default function JoinGroupPage({
             <div className="space-y-2 py-4 text-center">
               <p className="text-5xl">🎉</p>
               <p className="text-lg font-bold text-accent-emerald">Welcome to the squad!</p>
-              <p className="text-sm text-text-muted">Redirecting...</p>
+              <p className="text-sm text-text-muted">Redirecting…</p>
             </div>
           ) : isLoggedIn ? (
             <motion.button
@@ -256,10 +282,10 @@ export default function JoinGroupPage({
                 void handleJoin();
               }}
               disabled={joining}
-              className="w-full rounded-2xl bg-gradient-to-r from-accent-violet via-accent-pink to-accent-amber py-4 text-lg font-bold text-white disabled:opacity-60"
+              className="w-full rounded-2xl bg-gradient-to-r from-accent-violet via-accent-pink to-accent-amber py-4 text-lg font-bold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
               whileTap={{ scale: 0.98 }}
             >
-              {joining ? "Joining..." : "Join Squad 🚀"}
+              {joining ? "Joining…" : "Join Squad"}
             </motion.button>
           ) : (
             <motion.button
@@ -267,10 +293,10 @@ export default function JoinGroupPage({
                 void handleSignIn();
               }}
               disabled={signingIn}
-              className="w-full rounded-2xl bg-gradient-to-r from-accent-violet via-accent-pink to-accent-amber py-4 text-lg font-bold text-white disabled:opacity-60"
+              className="w-full rounded-2xl bg-gradient-to-r from-accent-violet via-accent-pink to-accent-amber py-4 text-lg font-bold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
               whileTap={{ scale: 0.98 }}
             >
-              {signingIn ? "Signing in..." : "Sign in with Google"}
+              {signingIn ? "Signing in…" : "Sign in with Google"}
             </motion.button>
           )}
 
@@ -278,12 +304,12 @@ export default function JoinGroupPage({
         </div>
 
         <div className="text-center">
-          <button
-            onClick={() => router.push("/")}
-            className="text-sm text-text-muted transition-colors hover:text-text-secondary"
+          <Link
+            href="/"
+            className="text-sm text-text-muted transition-colors hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
           >
-            ← Back to home
-          </button>
+            Back to home
+          </Link>
         </div>
       </motion.div>
     </div>

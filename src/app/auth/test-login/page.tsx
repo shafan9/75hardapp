@@ -1,53 +1,42 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-const TEST_MODE_ENABLED = process.env.NEXT_PUBLIC_E2E_TEST_MODE === "true";
-
 export default function TestLoginPage() {
-  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(process.env.NEXT_PUBLIC_E2E_USER_EMAIL ?? "");
+  const [password, setPassword] = useState(process.env.NEXT_PUBLIC_E2E_USER_PASSWORD ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!email || !password || loading) return;
+
+    if (!email.trim() || !password.trim()) {
+      setError("Enter an email and password.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
     if (signInError) {
-      setLoading(false);
       setError(signInError.message);
+      setLoading(false);
       return;
     }
 
     router.push("/dashboard");
-  }
-
-  if (!TEST_MODE_ENABLED) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center px-6">
-        <div className="glass-card w-full max-w-sm space-y-3 p-6 text-center">
-          <p className="text-xl font-bold text-text-primary">Not available</p>
-          <p className="text-sm text-text-secondary">
-            Test auth page is only enabled in E2E mode.
-          </p>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -61,27 +50,40 @@ export default function TestLoginPage() {
         <h1 className="text-xl font-bold text-text-primary">E2E Test Login</h1>
 
         <div className="space-y-2">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted">
+          <label
+            htmlFor="test-login-email"
+            className="block text-xs font-semibold uppercase tracking-wider text-text-muted"
+          >
             Email
           </label>
           <input
+            id="test-login-email"
+            name="email"
             type="email"
+            autoComplete="email"
+            spellCheck={false}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus:outline-none"
+            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
             required
           />
         </div>
 
         <div className="space-y-2">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-text-muted">
+          <label
+            htmlFor="test-login-password"
+            className="block text-xs font-semibold uppercase tracking-wider text-text-muted"
+          >
             Password
           </label>
           <input
+            id="test-login-password"
+            name="password"
             type="password"
+            autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus:outline-none"
+            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
             required
           />
         </div>
@@ -92,7 +94,7 @@ export default function TestLoginPage() {
           className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           whileTap={{ scale: 0.98 }}
         >
-          {loading ? "Signing in..." : "Sign In"}
+          {loading ? "Signing in…" : "Sign In"}
         </motion.button>
 
         {error && <p className="text-sm text-accent-red">{error}</p>}

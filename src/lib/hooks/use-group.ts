@@ -9,6 +9,13 @@ import { useToast } from "@/components/ui/toast-provider";
 
 const REQUEST_TIMEOUT_MS = 12000;
 
+interface InviteLookupRow {
+  id: string;
+  name: string;
+  invite_code: string;
+  member_count?: number;
+}
+
 export function useGroup() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -67,6 +74,38 @@ export function useGroup() {
 
     return user;
   }, [supabase]);
+
+  const lookupGroupByInviteCode = useCallback(
+    async (inviteCode: string): Promise<InviteLookupRow | null> => {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc("lookup_group_by_invite_code", { code: inviteCode })
+        .maybeSingle();
+
+      const rpcRow = rpcData as InviteLookupRow | null;
+
+      if (!rpcError && rpcRow?.id) {
+        return rpcRow;
+      }
+
+      const rpcErrorCode = (rpcError as { code?: string } | null)?.code;
+      if (rpcError && rpcErrorCode !== "PGRST202" && rpcErrorCode !== "42883") {
+        console.warn("Invite lookup RPC error:", rpcError);
+      }
+
+      const { data: legacyData, error: legacyError } = await supabase
+        .from("groups")
+        .select("id, name, invite_code")
+        .eq("invite_code", inviteCode)
+        .maybeSingle();
+
+      if (legacyError || !legacyData) {
+        return null;
+      }
+
+      return legacyData as InviteLookupRow;
+    },
+    [supabase]
+  );
 
   const fetchMembers = useCallback(
     async (groupId: string) => {
@@ -277,15 +316,9 @@ export function useGroup() {
     }
 
     const today = format(new Date(), "yyyy-MM-dd");
+    const foundGroup = await lookupGroupByInviteCode(inviteCode);
 
-    const { data: foundGroup, error: findError } = await supabase
-      .from("groups")
-      .select("*")
-      .eq("invite_code", inviteCode)
-      .single();
-
-    if (findError || !foundGroup) {
-      console.error("Group not found:", findError);
+    if (!foundGroup) {
       toast.error("Invite code is invalid.");
       return null;
     }
@@ -315,11 +348,19 @@ export function useGroup() {
       return null;
     }
 
-    setGroup(foundGroup as Group);
+    const normalizedGroup: Group = {
+      id: foundGroup.id,
+      name: foundGroup.name,
+      invite_code: foundGroup.invite_code,
+      created_by: user.id,
+      created_at: new Date().toISOString(),
+    };
+
+    setGroup(normalizedGroup);
     await fetchMembers(foundGroup.id);
 
     toast.success(`Joined ${foundGroup.name}.`);
-    return foundGroup as Group;
+    return normalizedGroup;
   };
 
   const getInviteLink = () => {

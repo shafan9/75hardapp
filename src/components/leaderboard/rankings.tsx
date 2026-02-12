@@ -67,7 +67,7 @@ export function Rankings({ members }: RankingsProps) {
             layoutId={`rank-${profile.id}`}
             data-testid="ranking-row"
             className={cn(
-              "relative flex items-center gap-3 rounded-2xl border p-3 transition-all",
+              "relative flex items-center gap-3 rounded-2xl border p-3 transition-colors",
               isFirst
                 ? "border-accent-amber/30 bg-gradient-to-r from-accent-amber/10 via-accent-pink/5 to-transparent"
                 : "border-border bg-bg-card"
@@ -105,6 +105,9 @@ export function Rankings({ members }: RankingsProps) {
                 <img
                   src={profile.avatar_url}
                   alt={profile.display_name || "User"}
+                  width={40}
+                  height={40}
+                  loading="lazy"
                   className="h-full w-full rounded-full object-cover"
                 />
               ) : (

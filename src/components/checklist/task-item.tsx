@@ -71,7 +71,7 @@ export function TaskItem({
         {/* Custom animated checkbox */}
         <button
           onClick={handleToggle}
-          className="relative flex-shrink-0 focus:outline-none"
+          className="relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
           aria-label={`Mark ${label} as ${isCompleted ? "incomplete" : "complete"}`}
         >
           <motion.div
@@ -81,7 +81,7 @@ export function TaskItem({
             }
             transition={{ type: "spring", stiffness: 400, damping: 10 }}
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all",
+              "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors",
               isCompleted
                 ? "border-accent-emerald bg-gradient-to-br from-accent-emerald to-accent-blue"
                 : "border-border-light bg-transparent hover:border-text-muted"
@@ -186,11 +186,14 @@ export function TaskItem({
             <div className="mt-3 flex gap-2">
               <input
                 type="text"
+                name={"note_" + taskKey}
+                aria-label={"Note for " + label}
+                autoComplete="off"
                 value={noteValue}
                 onChange={(e) => setNoteValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleNoteSubmit()}
-                placeholder="Add a note..."
-                className="flex-1 rounded-lg border border-border bg-bg-primary px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-violet focus:outline-none"
+                placeholder="Add a note…"
+                className="flex-1 rounded-lg border border-border bg-bg-primary px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
               />
               <button
                 onClick={handleNoteSubmit}

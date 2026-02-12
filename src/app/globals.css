@@ -7,7 +7,7 @@
   --color-bg-surface: #1E2444;
   --color-text-primary: #FFFFFF;
   --color-text-secondary: #8B95B3;
-  --color-text-muted: #5A6380;
+  --color-text-muted: #7380A6;
   --color-accent-violet: #7C3AED;
   --color-accent-pink: #EC4899;
   --color-accent-amber: #F59E0B;
@@ -105,4 +105,24 @@ body {
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
+}
+
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid #9f7aea;
+  outline-offset: 2px;
+}
+
+:where(input, textarea, select) {
+  touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

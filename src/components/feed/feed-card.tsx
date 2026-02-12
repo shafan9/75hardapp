@@ -63,6 +63,9 @@ export function FeedCard({
             <img
               src={profile.avatar_url}
               alt={profile.display_name || "User"}
+              width={40}
+              height={40}
+              loading="lazy"
               className="h-full w-full rounded-full object-cover"
             />
           ) : (

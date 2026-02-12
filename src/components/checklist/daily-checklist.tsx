@@ -115,7 +115,7 @@ export function DailyChecklist({
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-all",
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
               showAddForm
                 ? "bg-accent-red/10 text-accent-red hover:bg-accent-red/20"
                 : "bg-accent-violet/10 text-accent-violet hover:bg-accent-violet/20"
@@ -144,8 +144,9 @@ export function DailyChecklist({
                       <button
                         key={e}
                         onClick={() => setSelectedEmoji(e)}
+                        aria-label={"Choose emoji " + e}
                         className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-xl text-lg transition-all",
+                          "flex h-9 w-9 items-center justify-center rounded-xl text-lg transition-colors",
                           selectedEmoji === e
                             ? "bg-accent-violet/20 ring-2 ring-accent-violet scale-110"
                             : "bg-bg-surface hover:bg-bg-card-hover"
@@ -161,11 +162,15 @@ export function DailyChecklist({
                 <div className="flex gap-2">
                   <input
                     type="text"
+                    name="custom_task_name"
+                    aria-label="Custom task name"
+                    autoComplete="off"
+                    spellCheck={false}
                     value={newTaskName}
                     onChange={(e) => setNewTaskName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddTask()}
-                    placeholder="Task name..."
-                    className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus:outline-none"
+                    placeholder="Task name…"
+                    className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                     maxLength={40}
                   />
                   <button
