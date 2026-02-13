@@ -50,6 +50,9 @@ export default function ProfilePage() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(false);
+  const [pushConfigured, setPushConfigured] = useState(true);
+  const [emailConfigured, setEmailConfigured] = useState(true);
+  const [smsConfigured, setSmsConfigured] = useState(true);
   const [phoneE164, setPhoneE164] = useState("");
   const [timezone, setTimezone] = useState(localTimezone);
   const [reminderTime, setReminderTime] = useState("21:00");
@@ -70,7 +73,7 @@ export default function ProfilePage() {
     const userId = user.id;
 
     async function loadSettingsAndStats() {
-      const [settingsResult, completionsResult, progressResult] = await Promise.all([
+      const [settingsResult, statsResponse, configResponse] = await Promise.all([
         supabase
           .from("user_settings")
           .select(
@@ -78,14 +81,8 @@ export default function ProfilePage() {
           )
           .eq("user_id", userId)
           .maybeSingle(),
-        supabase
-          .from("task_completions")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", userId),
-        supabase
-          .from("challenge_progress")
-          .select("current_day")
-          .eq("user_id", userId),
+        fetch("/api/profile/stats", { method: "GET", cache: "no-store" }),
+        fetch("/api/notifications/config", { method: "GET", cache: "no-store" }),
       ]);
 
       if (settingsResult.data) {
@@ -98,15 +95,30 @@ export default function ProfilePage() {
         setReminderTime(toTimeInputValue(String(settingsResult.data.reminder_time ?? "21:00")));
       }
 
-      setTotalCompletions(completionsResult.count ?? 0);
+      if (configResponse.ok) {
+        const cfg = (await configResponse.json().catch(() => ({}))) as {
+          pushConfigured?: unknown;
+          emailConfigured?: unknown;
+          smsConfigured?: unknown;
+        };
+        setPushConfigured(Boolean(cfg.pushConfigured));
+        setEmailConfigured(Boolean(cfg.emailConfigured));
+        setSmsConfigured(Boolean(cfg.smsConfigured));
+      }
 
-      const best = Math.max(
-        0,
-        ...(progressResult.data ?? []).map((row) =>
-          Number((row as { current_day: number }).current_day || 0)
-        )
-      );
-      setBestStreak(best);
+      if (!statsResponse.ok) {
+        setTotalCompletions(0);
+        setBestStreak(0);
+        return;
+      }
+
+      const payload = (await statsResponse.json().catch(() => ({}))) as {
+        totalCompletions?: number;
+        bestStreak?: number;
+      };
+
+      setTotalCompletions(Number(payload.totalCompletions ?? 0));
+      setBestStreak(Number(payload.bestStreak ?? 0));
     }
 
     void loadSettingsAndStats();
@@ -203,6 +215,11 @@ export default function ProfilePage() {
   }
 
   async function togglePush() {
+    if (!pushConfigured) {
+      toast.error("Push notifications are not configured yet.");
+      return;
+    }
+
     const next = !pushEnabled;
 
     try {
@@ -224,6 +241,11 @@ export default function ProfilePage() {
   }
 
   async function toggleEmail() {
+    if (!emailConfigured) {
+      toast.error("Email notifications are not configured yet.");
+      return;
+    }
+
     const next = !emailEnabled;
     setEmailEnabled(next);
     const ok = await persistSettings({ email_enabled: next });
@@ -231,6 +253,11 @@ export default function ProfilePage() {
   }
 
   async function toggleSms() {
+    if (!smsConfigured) {
+      toast.error("SMS notifications are not configured yet.");
+      return;
+    }
+
     const next = !smsEnabled;
     setSmsEnabled(next);
     const ok = await persistSettings({ sms_enabled: next });
@@ -523,6 +550,9 @@ export default function ProfilePage() {
             <div>
               <p className="text-sm font-medium text-text-primary">Push Notifications</p>
               <p className="text-xs text-text-muted">Browser/phone push reminders</p>
+              {!pushConfigured && (
+                <p className="text-xs text-accent-amber">Not configured yet</p>
+              )}
             </div>
             <motion.button
               onClick={() => {
@@ -531,11 +561,11 @@ export default function ProfilePage() {
               aria-label="Toggle push notifications"
               role="switch"
               aria-checked={pushEnabled}
-              disabled={savingSettings}
+              disabled={savingSettings || !pushConfigured}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
                 pushEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                savingSettings && "opacity-60"
+                (savingSettings || !pushConfigured) && "opacity-60"
               )}
               whileTap={{ scale: 0.95 }}
             >
@@ -553,6 +583,9 @@ export default function ProfilePage() {
               <p className="text-xs text-text-muted">
                 Reminder emails to your account
               </p>
+              {!emailConfigured && (
+                <p className="text-xs text-accent-amber">Not configured yet</p>
+              )}
             </div>
             <motion.button
               onClick={() => {
@@ -561,11 +594,11 @@ export default function ProfilePage() {
               aria-label="Toggle email notifications"
               role="switch"
               aria-checked={emailEnabled}
-              disabled={savingSettings}
+              disabled={savingSettings || !emailConfigured}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
                 emailEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                savingSettings && "opacity-60"
+                (savingSettings || !emailConfigured) && "opacity-60"
               )}
               whileTap={{ scale: 0.95 }}
             >
@@ -583,6 +616,9 @@ export default function ProfilePage() {
               <p className="text-xs text-text-muted">
                 Text reminders to your phone
               </p>
+              {!smsConfigured && (
+                <p className="text-xs text-accent-amber">Not configured yet</p>
+              )}
             </div>
             <motion.button
               onClick={() => {
@@ -591,11 +627,11 @@ export default function ProfilePage() {
               aria-label="Toggle SMS notifications"
               role="switch"
               aria-checked={smsEnabled}
-              disabled={savingSettings}
+              disabled={savingSettings || !smsConfigured}
               className={cn(
                 "relative h-7 w-12 rounded-full transition-colors",
                 smsEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                savingSettings && "opacity-60"
+                (savingSettings || !smsConfigured) && "opacity-60"
               )}
               whileTap={{ scale: 0.95 }}
             >
@@ -620,6 +656,7 @@ export default function ProfilePage() {
                 placeholder="+15551234567"
                 value={phoneE164}
                 onChange={(event) => setPhoneE164(event.target.value)}
+                disabled={!smsConfigured || savingSettings}
                 className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
               />
             </label>

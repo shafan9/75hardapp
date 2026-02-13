@@ -160,18 +160,42 @@ export function useAuth() {
     };
   }, [supabase, fetchProfile, withTimeout]);
 
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+  const signInWithPassword = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      toast.error(error.message || "Could not sign in.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const signUpWithPassword = async (email: string, password: string, displayName?: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        data: {
+          full_name: displayName,
+        },
       },
     });
 
     if (error) {
-      console.error("Error signing in with Google:", error);
-      toast.error("Could not start Google sign-in.");
+      toast.error(error.message || "Could not create account.");
+      return { success: false, requiresConfirmation: false };
     }
+
+    const requiresConfirmation = !data.session;
+    if (requiresConfirmation) {
+      toast.success("Account created. Check your email to confirm your account.");
+    }
+
+    return { success: true, requiresConfirmation };
   };
 
   const signOut = async () => {
@@ -216,7 +240,8 @@ export function useAuth() {
     user,
     profile,
     loading,
-    signInWithGoogle,
+    signInWithPassword,
+    signUpWithPassword,
     signOut,
     updateProfile,
   };

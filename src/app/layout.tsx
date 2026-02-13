@@ -1,11 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import { Space_Grotesk } from "next/font/google";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://75-squad-challenge.netlify.app";
 const siteTitle = "75 Squad - Crush 75 Hard Together";
 const siteDescription =
-  "Track the 75 Hard challenge with your squad using a daily checklist, accountability feed, reminders, and milestone badges.";
+  "Track the 75 Hard challenge with your squad using a daily checklist, motivation, reminders, and shared progress on mobile and desktop.";
+
+const appFont = Space_Grotesk({ subsets: ["latin"], variable: "--font-app", display: "swap" });
+
 
 const supabaseOrigin = (() => {
   const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,10 +37,10 @@ export const metadata: Metadata = {
     siteName: "75 Squad",
     images: [
       {
-        url: "/icons/icon-512.png",
-        width: 512,
-        height: 512,
-        alt: "75 Squad app icon",
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "75 Squad - Crush 75 Hard Together",
       },
     ],
   },
@@ -44,7 +48,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/icons/icon-512.png"],
+    images: ["/og.png"],
   },
   manifest: "/manifest.json",
   icons: { apple: "/icons/icon-192.png" },
@@ -62,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className={`${appFont.variable} dark`}>
       <head>
         {supabaseOrigin && <link rel="preconnect" href={supabaseOrigin} crossOrigin="anonymous" />}
       </head>

@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "About 75 Squad",
+  title: "About 75 Squad | 75 Hard Accountability App",
   description:
-    "Learn how 75 Squad helps teams complete 75-day challenges through daily tracking, reminders, and shared accountability.",
+    "Learn how 75 Squad helps teams complete 75-day challenges through daily tracking, reminders, and shared accountability together.",
 };
 
 export default function AboutPage() {

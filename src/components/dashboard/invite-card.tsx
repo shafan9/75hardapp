@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface InviteCardProps {
@@ -11,10 +11,15 @@ interface InviteCardProps {
 export function InviteCard({ inviteCode, groupName }: InviteCardProps) {
   const [copied, setCopied] = useState(false);
 
-  const inviteUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/join/${inviteCode}`
-      : `/join/${inviteCode}`;
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const canonicalBase = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  const baseUrl = origin || canonicalBase || "";
+  const inviteUrl = baseUrl ? `${baseUrl}/join/${inviteCode}` : `/join/${inviteCode}`;
 
   const handleCopy = useCallback(async () => {
     try {
@@ -89,7 +94,7 @@ export function InviteCard({ inviteCode, groupName }: InviteCardProps) {
                   exit={{ opacity: 0, scale: 0.8 }}
                   className="flex items-center gap-1 text-accent-emerald"
                 >
-                  <svg
+                  <svg aria-hidden="true" focusable="false"
                     width="12"
                     height="12"
                     viewBox="0 0 12 12"
@@ -111,7 +116,7 @@ export function InviteCard({ inviteCode, groupName }: InviteCardProps) {
                   exit={{ opacity: 0, scale: 0.8 }}
                   className="flex items-center gap-1"
                 >
-                  <svg
+                  <svg aria-hidden="true" focusable="false"
                     width="12"
                     height="12"
                     viewBox="0 0 12 12"
@@ -136,7 +141,7 @@ export function InviteCard({ inviteCode, groupName }: InviteCardProps) {
           onClick={handleShare}
           className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
         >
-          <svg
+          <svg aria-hidden="true" focusable="false"
             width="16"
             height="16"
             viewBox="0 0 16 16"

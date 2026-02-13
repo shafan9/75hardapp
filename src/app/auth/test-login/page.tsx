@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -8,6 +8,24 @@ import { createClient } from "@/lib/supabase/client";
 export default function TestLoginPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+
+  const e2eEnabled = process.env.NEXT_PUBLIC_E2E_TEST_MODE === "true";
+
+  useEffect(() => {
+    if (!e2eEnabled) {
+      router.replace("/");
+    }
+  }, [e2eEnabled, router]);
+
+  if (!e2eEnabled) {
+    return null;
+  }
+
+  // In E2E we want to avoid interacting before React has hydrated.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const [email, setEmail] = useState(process.env.NEXT_PUBLIC_E2E_USER_EMAIL ?? "");
   const [password, setPassword] = useState(process.env.NEXT_PUBLIC_E2E_USER_PASSWORD ?? "");
@@ -26,7 +44,7 @@ export default function TestLoginPage() {
     setError(null);
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       password,
     });
 
@@ -37,7 +55,10 @@ export default function TestLoginPage() {
     }
 
     router.push("/dashboard");
+    router.refresh();
   }
+
+  const disableForm = loading || !hydrated;
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-6">
@@ -48,6 +69,8 @@ export default function TestLoginPage() {
         animate={{ opacity: 1, y: 0 }}
       >
         <h1 className="text-xl font-bold text-text-primary">E2E Test Login</h1>
+
+        {hydrated && <div data-testid="hydrated" className="sr-only">hydrated</div>}
 
         <div className="space-y-2">
           <label
@@ -64,7 +87,8 @@ export default function TestLoginPage() {
             spellCheck={false}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+            disabled={disableForm}
+            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary disabled:cursor-not-allowed disabled:opacity-60"
             required
           />
         </div>
@@ -83,18 +107,19 @@ export default function TestLoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+            disabled={disableForm}
+            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary disabled:cursor-not-allowed disabled:opacity-60"
             required
           />
         </div>
 
         <motion.button
           type="submit"
-          disabled={loading}
-          className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          disabled={disableForm}
+          className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           whileTap={{ scale: 0.98 }}
         >
-          {loading ? "Signing in…" : "Sign In"}
+          {!hydrated ? "Loading…" : loading ? "Signing in…" : "Sign In"}
         </motion.button>
 
         {error && <p className="text-sm text-accent-red">{error}</p>}

@@ -51,11 +51,12 @@ export function DailyChecklist({
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-text-primary">
-          Day {currentDay} Checklist
-        </h2>
-        <span className="text-sm text-text-muted">
-          {completions.length} / {DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).length} required
+        <div>
+          <h2 className="text-lg font-bold text-text-primary">Checklist</h2>
+          <p className="text-xs text-text-muted">Day {currentDay}</p>
+        </div>
+        <span className="text-sm font-semibold text-text-secondary">
+          {DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).filter((t) => completions.includes(t.key)).length} / {DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).length} required
         </span>
       </div>
 
@@ -213,7 +214,7 @@ export function DailyChecklist({
                   className="flex-shrink-0 rounded-lg p-2 text-text-muted hover:bg-accent-red/10 hover:text-accent-red transition-colors"
                   aria-label={`Remove ${task.name}`}
                 >
-                  <svg
+                  <svg aria-hidden="true" focusable="false"
                     width="14"
                     height="14"
                     viewBox="0 0 14 14"

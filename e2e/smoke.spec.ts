@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
 
-const email = process.env.E2E_USER_EMAIL;
-const password = process.env.E2E_USER_PASSWORD;
+const email = process.env.E2E_USER_EMAIL?.trim();
+const password = process.env.E2E_USER_PASSWORD?.trim();
 
 test.describe("75 Squad smoke", () => {
   test.skip(!email || !password, "Set E2E_USER_EMAIL and E2E_USER_PASSWORD to run smoke tests.");
 
-  test("auth -> create/join group -> complete tasks -> feed + leaderboard", async ({ page }) => {
+  test("auth -> create squad (if needed) -> complete tasks -> see squad status", async ({ page }) => {
     const squadName = `E2E Squad ${Date.now()}`;
     const requiredTasks = [
       "Outdoor Workout",
@@ -15,62 +15,53 @@ test.describe("75 Squad smoke", () => {
       "Gallon of Water",
       "Read 10 Pages",
     ];
-    const commentText = `E2E comment ${Date.now()}`;
 
     await page.goto("/auth/test-login");
     await expect(page.getByRole("heading", { name: "E2E Test Login" })).toBeVisible();
 
-    await page.locator('input[type="email"]').fill(email!);
-    await page.locator('input[type="password"]').fill(password!);
+    // The form is disabled until hydration.
+    await expect(page.getByTestId("hydrated")).toBeVisible();
+
+    const emailInput = page.locator("#test-login-email");
+    const passwordInput = page.locator("#test-login-password");
+
+    await expect(emailInput).toBeEnabled();
+
+    await emailInput.click();
+    await emailInput.fill(email!);
+
+    await passwordInput.click();
+    await passwordInput.fill(password!);
 
     await Promise.all([
-      page.waitForURL(/\/dashboard(\/.*)?$/),
+      page.waitForURL(/\/dashboard(\/.*)?$/, { waitUntil: "domcontentloaded" }),
       page.getByRole("button", { name: "Sign In" }).click(),
     ]);
 
-    await page.goto("/dashboard/group");
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
 
-    const createInput = page.getByPlaceholder("Squad name");
+    // Create squad if the user doesn't have one yet.
+    const createInput = page.locator("#squad-name");
     if (await createInput.isVisible()) {
       await createInput.fill(squadName);
       await page.getByRole("button", { name: "Create Squad" }).click();
-      await expect(page.getByText(squadName)).toBeVisible();
+      await expect(page.getByText(`Invite to ${squadName}`)).toBeVisible();
     } else {
-      await expect(page.getByText("Squad Members")).toBeVisible();
+      await expect(page.getByText(/Invite to /)).toBeVisible();
     }
 
-    await page.goto("/dashboard");
-    await expect(page.getByText("Daily Motivation")).toBeVisible();
-
+    // Complete required tasks (idempotent).
     for (const taskLabel of requiredTasks) {
-      const completeButton = page.locator(
-        `button[aria-label="Mark ${taskLabel} as complete"]`
-      );
-      if ((await completeButton.count()) > 0) {
-        await completeButton.first().click();
+      const markComplete = page.locator(`button[aria-label="Mark ${taskLabel} as complete"]`);
+      if ((await markComplete.count()) > 0) {
+        await expect(markComplete.first()).toBeVisible();
+        await markComplete.first().click();
       }
     }
 
     await expect(page.getByText(/ALL TASKS DONE!/i)).toBeVisible();
 
-    await page.goto("/dashboard/feed");
-    await expect(page.getByText(/Live activity from your group/i)).toBeVisible();
-
-    const feedCard = page.locator(".glass-card", { hasText: "Completed" }).first();
-    await expect(feedCard).toBeVisible();
-
-    await feedCard.getByRole("button", { name: "React with 🔥" }).click();
-    await feedCard.getByRole("button", { name: "Open comments" }).click();
-
-    await page.getByPlaceholder("Write a comment…").fill(commentText);
-    await page.getByRole("button", { name: "Send comment" }).click();
-    await expect(page.getByText(commentText)).toBeVisible();
-
-    await page.getByRole("button", { name: "Close" }).click();
-
-    await page.goto("/dashboard/leaderboard");
-    await expect(page.getByText("Overall Rankings")).toBeVisible();
-    await expect(page.locator('[data-testid="ranking-row"]').first()).toBeVisible();
-    await expect(page.getByText("5/5")).toBeVisible();
+    // Squad status updates should show at least one DONE badge.
+    await expect(page.getByText("DONE", { exact: true })).toBeVisible();
   });
 });

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "75 Squad Privacy Policy",
+  title: "Privacy Policy | 75 Squad Data & Reminders",
   description:
     "Read the 75 Squad privacy policy, including what data is stored, how reminders work, and how to request account deletion.",
 };

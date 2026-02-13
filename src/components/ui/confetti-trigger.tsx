@@ -19,6 +19,13 @@ export function ConfettiTrigger({ trigger }: ConfettiTriggerProps) {
 
   useEffect(() => {
     if (!trigger || hasFired.current) return;
+
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduceMotion) return;
     hasFired.current = true;
 
     const fireConfetti = () => {

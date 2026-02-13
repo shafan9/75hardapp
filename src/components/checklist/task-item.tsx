@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { EmojiBurst } from "@/components/ui/emoji-burst";
@@ -17,6 +17,67 @@ interface TaskItemProps {
   note?: string;
 }
 
+type AccentStyle = {
+  iconBg: string;
+  glow: string;
+  completedTint: string;
+};
+
+function getAccentForTask(taskKey: string): AccentStyle {
+  if (taskKey.startsWith("custom_")) {
+    return {
+      iconBg: "bg-gradient-to-br from-accent-violet/70 to-accent-pink/60",
+      glow: "shadow-[0_10px_30px_rgba(124,58,237,0.18)]",
+      completedTint: "bg-accent-violet/10",
+    };
+  }
+
+  switch (taskKey) {
+    case "workout_outdoor":
+      return {
+        iconBg: "bg-gradient-to-br from-accent-amber/80 to-accent-pink/60",
+        glow: "shadow-[0_10px_30px_rgba(245,158,11,0.16)]",
+        completedTint: "bg-accent-amber/10",
+      };
+    case "workout_indoor":
+      return {
+        iconBg: "bg-gradient-to-br from-accent-pink/70 to-accent-violet/70",
+        glow: "shadow-[0_10px_30px_rgba(236,72,153,0.16)]",
+        completedTint: "bg-accent-pink/10",
+      };
+    case "water":
+      return {
+        iconBg: "bg-gradient-to-br from-accent-blue/70 to-accent-violet/55",
+        glow: "shadow-[0_10px_30px_rgba(59,130,246,0.16)]",
+        completedTint: "bg-accent-blue/10",
+      };
+    case "diet":
+      return {
+        iconBg: "bg-gradient-to-br from-accent-emerald/70 to-accent-amber/50",
+        glow: "shadow-[0_10px_30px_rgba(16,185,129,0.14)]",
+        completedTint: "bg-accent-emerald/10",
+      };
+    case "reading":
+      return {
+        iconBg: "bg-gradient-to-br from-accent-amber/70 to-accent-emerald/45",
+        glow: "shadow-[0_10px_30px_rgba(245,158,11,0.14)]",
+        completedTint: "bg-accent-amber/10",
+      };
+    case "progress_photo":
+      return {
+        iconBg: "bg-gradient-to-br from-accent-violet/70 to-accent-blue/55",
+        glow: "shadow-[0_10px_30px_rgba(124,58,237,0.14)]",
+        completedTint: "bg-accent-violet/10",
+      };
+    default:
+      return {
+        iconBg: "bg-gradient-to-br from-accent-violet/60 to-accent-pink/55",
+        glow: "shadow-[0_10px_30px_rgba(124,58,237,0.12)]",
+        completedTint: "bg-accent-violet/10",
+      };
+  }
+}
+
 export function TaskItem({
   taskKey,
   emoji,
@@ -28,6 +89,8 @@ export function TaskItem({
   onAddNote,
   note,
 }: TaskItemProps) {
+  const accent = useMemo(() => getAccentForTask(taskKey), [taskKey]);
+
   const [showBurst, setShowBurst] = useState(false);
   const [noteValue, setNoteValue] = useState(note || "");
   const [showNoteInput, setShowNoteInput] = useState(!!note);
@@ -40,9 +103,7 @@ export function TaskItem({
   }, [isCompleted, onToggle]);
 
   const handleNoteSubmit = useCallback(() => {
-    if (noteValue.trim()) {
-      onAddNote(noteValue.trim());
-    }
+    onAddNote(noteValue.trim());
   }, [noteValue, onAddNote]);
 
   return (
@@ -50,114 +111,70 @@ export function TaskItem({
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      exit={{ opacity: 0, y: -10, scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 320, damping: 26 }}
       className={cn(
-        "relative rounded-2xl border p-4 transition-colors",
-        isCompleted
-          ? "border-accent-emerald/30 bg-accent-emerald/5"
-          : "border-border bg-bg-card hover:bg-bg-card-hover"
+        "relative overflow-hidden rounded-3xl border border-border/80 px-4 py-3.5",
+        "bg-white/5 backdrop-blur-[18px] shadow-[0_10px_30px_rgba(0,0,0,0.28)]",
+        "transition-colors",
+        isCompleted ? accent.completedTint : "hover:bg-white/10",
+        isCompleted && "border-white/10"
       )}
-      style={
-        isCompleted
-          ? {
-              boxShadow:
-                "0 0 20px rgba(16, 185, 129, 0.15), 0 0 60px rgba(16, 185, 129, 0.05)",
-            }
-          : undefined
-      }
     >
       <div className="flex items-center gap-3">
-        {/* Custom animated checkbox */}
-        <button
-          onClick={handleToggle}
-          className="relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-          aria-label={`Mark ${label} as ${isCompleted ? "incomplete" : "complete"}`}
+        <div
+          className={cn(
+            "relative grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl",
+            "shadow-[0_0_0_1px_rgba(255,255,255,0.14)_inset]",
+            accent.iconBg,
+            accent.glow
+          )}
+          aria-hidden="true"
         >
-          <motion.div
-            whileTap={{ scale: 0.8 }}
-            animate={
-              isCompleted ? { scale: [1, 1.3, 1] } : { scale: 1 }
-            }
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
-            className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors",
-              isCompleted
-                ? "border-accent-emerald bg-gradient-to-br from-accent-emerald to-accent-blue"
-                : "border-border-light bg-transparent hover:border-text-muted"
-            )}
-          >
-            <AnimatePresence mode="wait">
-              {isCompleted && (
-                <motion.svg
-                  key="check"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  exit={{ pathLength: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                >
-                  <motion.path
-                    d="M3 8.5L6.5 12L13 4"
-                    stroke="white"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.3, delay: 0.1 }}
-                  />
-                </motion.svg>
-              )}
-            </AnimatePresence>
-          </motion.div>
+          <span className="text-xl leading-none">{emoji}</span>
 
-          {/* Emoji burst on completion */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
             <EmojiBurst
               emoji={emoji}
               trigger={showBurst}
               onComplete={() => setShowBurst(false)}
             />
           </div>
-        </button>
-
-        {/* Task info */}
-        <div className="flex flex-1 items-center gap-2 overflow-hidden">
-          <span className="text-xl flex-shrink-0">{emoji}</span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "font-semibold text-sm truncate",
-                  isCompleted
-                    ? "text-accent-emerald"
-                    : "text-text-primary"
-                )}
-              >
-                {label}
-              </span>
-              {isOptional && (
-                <span className="flex-shrink-0 rounded-full bg-accent-amber/10 px-2 py-0.5 text-[10px] font-medium text-accent-amber">
-                  optional
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-text-muted truncate">{description}</p>
-          </div>
         </div>
 
-        {/* Note toggle for completed tasks */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "truncate text-sm font-semibold",
+                isCompleted ? "text-text-primary" : "text-text-primary"
+              )}
+            >
+              {label}
+            </span>
+            {isOptional && (
+              <span className="flex-shrink-0 rounded-full bg-accent-amber/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-amber">
+                optional
+              </span>
+            )}
+          </div>
+          <p className="truncate text-xs text-text-muted">{description}</p>
+        </div>
+
         {isCompleted && (
           <button
-            onClick={() => setShowNoteInput(!showNoteInput)}
-            className="flex-shrink-0 rounded-lg p-1.5 text-text-muted hover:bg-bg-surface hover:text-text-secondary transition-colors"
-            aria-label="Add note"
+            onClick={() => setShowNoteInput((value) => !value)}
+            className={cn(
+              "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl",
+              "border border-white/10 bg-white/5 text-text-secondary",
+              "transition-colors hover:bg-white/10",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
+            )}
+            aria-label={showNoteInput ? "Hide note" : "Add note"}
           >
             <svg
+              aria-hidden="true"
+              focusable="false"
               width="16"
               height="16"
               viewBox="0 0 16 16"
@@ -171,33 +188,89 @@ export function TaskItem({
             </svg>
           </button>
         )}
+
+        <button
+          onClick={handleToggle}
+          className={cn(
+            "relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl",
+            "border transition-colors",
+            isCompleted
+              ? "border-white/10 bg-gradient-to-br from-accent-emerald/80 to-accent-blue/60 text-white"
+              : "border-white/10 bg-white/5 text-text-secondary hover:bg-white/10",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
+          )}
+          aria-label={`Mark ${label} as ${isCompleted ? "incomplete" : "complete"}`}
+        >
+          <AnimatePresence mode="wait">
+            {isCompleted ? (
+              <motion.svg
+                key="check"
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                transition={{ duration: 0.16 }}
+                width="18"
+                height="18"
+                viewBox="0 0 16 16"
+                fill="none"
+              >
+                <path
+                  d="M3 8.5L6.5 12L13 4"
+                  stroke="white"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </motion.svg>
+            ) : (
+              <motion.span
+                key="dot"
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                transition={{ duration: 0.16 }}
+                className="h-2 w-2 rounded-full bg-white/25"
+                aria-hidden="true"
+              />
+            )}
+          </AnimatePresence>
+        </button>
       </div>
 
-      {/* Note input */}
       <AnimatePresence>
         {isCompleted && showNoteInput && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            transition={{ type: "spring", stiffness: 260, damping: 28 }}
             className="overflow-hidden"
           >
             <div className="mt-3 flex gap-2">
               <input
                 type="text"
-                name={"note_" + taskKey}
-                aria-label={"Note for " + label}
+                name={`note_${taskKey}`}
+                aria-label={`Note for ${label}`}
                 autoComplete="off"
                 value={noteValue}
-                onChange={(e) => setNoteValue(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleNoteSubmit()}
-                placeholder="Add a note…"
-                className="flex-1 rounded-lg border border-border bg-bg-primary px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+                onChange={(event) => setNoteValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") handleNoteSubmit();
+                }}
+                placeholder="Quick note (optional)"
+                className={cn(
+                  "flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-text-primary",
+                  "placeholder:text-text-muted",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
+                )}
               />
               <button
                 onClick={handleNoteSubmit}
-                className="rounded-lg bg-accent-violet px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-violet/80 transition-colors"
+                disabled={!noteValue.trim()}
+                className={cn(
+                  "rounded-2xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-xs font-semibold text-white",
+                  "disabled:opacity-50"
+                )}
               >
                 Save
               </button>

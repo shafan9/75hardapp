@@ -2,9 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Contact 75 Squad",
+  title: "Contact 75 Squad | Support for Sign-In & Notifications",
   description:
-    "Get support for 75 Squad setup, notifications, sign-in, and squad management. Response time is typically one business day.",
+    "Get support for 75 Squad setup, notifications, sign-in, and squad management. Response time is typically one business day for most requests.",
 };
 
 export default function ContactPage() {
