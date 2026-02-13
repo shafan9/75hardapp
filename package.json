@@ -11,7 +11,7 @@
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.5.2",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.47.12",
     "@types/web-push": "^3.6.4",
     "canvas-confetti": "^1.9.3",
