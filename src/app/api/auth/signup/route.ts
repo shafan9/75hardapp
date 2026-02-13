@@ -23,19 +23,6 @@ function isValidEmail(email: string) {
   return true;
 }
 
-async function findUserIdByEmail(db: ReturnType<typeof createAdminClient>, email: string) {
-  // Supabase Auth doesn't provide a direct "get by email" helper in supabase-js.
-  // For this small app, a paginated scan is acceptable.
-  for (let page = 1; page <= 10; page++) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw new Error(error.message);
-    const users = data?.users ?? [];
-    const match = users.find((user) => (user.email ?? "").toLowerCase() === email);
-    if (match?.id) return match.id;
-    if (users.length < 200) break;
-  }
-  return null;
-}
 
 export async function POST(request: Request) {
   try {
@@ -99,35 +86,15 @@ export async function POST(request: Request) {
     if (createResult.error) {
       const message = createResult.error.message || "Could not create account.";
 
-      // If the user already exists, confirm them + set password to the provided one.
+      // Do not reset existing user passwords from an invite link (prevents account takeovers if an invite leaks).
       if (/already|exists|registered/i.test(message)) {
-        const existingUserId = await findUserIdByEmail(db, email);
-        if (!existingUserId) {
-          return NextResponse.json({ error: message }, { status: 409 });
-        }
-
-        const updateResult = await db.auth.admin.updateUserById(existingUserId, {
-          password,
-          email_confirm: true,
-          user_metadata: displayName ? { full_name: displayName } : undefined,
-        });
-
-        if (updateResult.error) {
-          return NextResponse.json(
-            { error: updateResult.error.message || "Could not update existing account." },
-            { status: 409 }
-          );
-        }
-
-        await db.from("profiles").upsert(
+        return NextResponse.json(
           {
-            id: existingUserId,
-            display_name: displayName || null,
+            error: "An account with this email already exists. Sign in instead.",
+            code: "USER_EXISTS",
           },
-          { onConflict: "id" }
+          { status: 409 }
         );
-
-        return NextResponse.json({ ok: true, userId: existingUserId, wasExisting: true });
       }
 
       return NextResponse.json({ error: message }, { status: 400 });

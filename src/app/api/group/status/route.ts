@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_TASK_KEYS, TOTAL_DAYS } from "@/lib/constants";
+import { repairTaskCompletionDates } from "@/lib/repairs";
 import {
   addDays,
   diffDays,
@@ -176,6 +177,23 @@ export async function GET(request: Request) {
     const today = getLocalDate(new Date(), squadTimezone);
     const squadStartDate = await getSquadStartDate(db, groupId, squadTimezone, today);
     const squadDayNumber = getDayNumber(squadStartDate, today);
+
+    try {
+      const { data: groupRow } = await db
+        .from("groups")
+        .select("created_by")
+        .eq("id", groupId)
+        .maybeSingle();
+
+      const ownerId = (groupRow as { created_by?: string | null } | null)?.created_by ?? null;
+
+      if (ownerId && ownerId === user.id) {
+        await repairTaskCompletionDates(db, { groupId, timezone: squadTimezone });
+      }
+    } catch (error) {
+      console.warn("Squad status repair skipped:", error);
+    }
+
 
     const [profilesResult, progressResult, completionsResult] = await Promise.all([
       db.from("profiles").select("id, display_name, avatar_url, created_at").in("id", userIds),

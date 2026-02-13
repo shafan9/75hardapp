@@ -319,6 +319,9 @@ export default function DashboardPage() {
           <Link href="/dashboard/profile" className="hover:text-text-primary">
             Profile & notification settings
           </Link>
+          <Link href={`/dashboard/member/${user.id}`} className="hover:text-text-primary">
+            View your history
+          </Link>
         </div>
       </section>
     </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_TASK_KEYS, TOTAL_DAYS } from "@/lib/constants";
+import { repairTaskCompletionDates } from "@/lib/repairs";
 import {
   addDays,
   diffDays,
@@ -339,16 +340,53 @@ async function getChecklistState(
   if (completionsResult.error) {
     throw new Error(`Could not load task completions: ${completionsResult.error.message}`);
   }
-
   const todayCompleted = (completionsResult.data ?? []).map((row) => row.task_key as string);
+
+  let updatedProgress = progress;
+  let streak = getActiveStreak(progress, today);
+
+  try {
+    const recomputed = await recomputeStreak(db, userId, groupId, squadStartDate, today);
+    const progressId = (progress as { id?: string }).id;
+
+    if (progressId) {
+      const currentDay = Number((progress as { current_day?: number | null }).current_day ?? 0);
+      const lastCompleted = (progress as { last_completed_date?: string | null }).last_completed_date ?? null;
+
+      if (currentDay !== recomputed.streak || lastCompleted !== recomputed.lastCompletedDate) {
+        const { data: progressData, error: progressUpdateError } = await db
+          .from("challenge_progress")
+          .update({
+            current_day: recomputed.streak,
+            last_completed_date: recomputed.lastCompletedDate,
+          })
+          .eq("id", progressId)
+          .select("*")
+          .single();
+
+        if (!progressUpdateError && progressData) {
+          updatedProgress = progressData;
+        }
+      }
+    }
+
+    const yesterday = addDays(today, -1);
+    streak =
+      recomputed.lastCompletedDate &&
+      (recomputed.lastCompletedDate === today || recomputed.lastCompletedDate === yesterday)
+        ? recomputed.streak
+        : 0;
+  } catch (error) {
+    console.warn("Checklist streak repair skipped:", error);
+  }
 
   return {
     groupId,
     customTasks: customTasks ?? [],
     todayCompleted,
-    progress,
+    progress: updatedProgress,
     currentDay: getDayNumber(squadStartDate, today),
-    streak: getActiveStreak(progress, today),
+    streak,
     isAllDone: DEFAULT_TASK_KEYS.every((key) => todayCompleted.includes(key)),
     squadDate: today,
     squadStartDate,
@@ -381,6 +419,17 @@ export async function GET(request: Request) {
     const squadTimezone = await getSquadTimezone(db, groupId, fallbackTimezone, user.id);
     const today = getLocalDate(new Date(), squadTimezone);
     const squadStartDate = await getSquadStartDate(db, groupId, squadTimezone, today);
+
+    try {
+      await repairTaskCompletionDates(db, {
+        groupId,
+        userId: user.id,
+        timezone: squadTimezone,
+      });
+    } catch (error) {
+      console.warn("Checklist repair skipped:", error);
+    }
+
 
     const state = await getChecklistState(db, user.id, groupId, today, squadStartDate);
     return NextResponse.json(state, { status: 200 });
@@ -424,6 +473,19 @@ export async function POST(request: Request) {
     const squadStartDate = groupId
       ? await getSquadStartDate(db, groupId, squadTimezone, today)
       : null;
+
+    if (groupId) {
+      try {
+        await repairTaskCompletionDates(db, {
+          groupId,
+          userId: user.id,
+          timezone: squadTimezone,
+        });
+      } catch (error) {
+        console.warn("Checklist repair skipped:", error);
+      }
+    }
+
 
     if (body.action === "addCustomTask") {
       const name = body.name?.trim();

@@ -28,7 +28,7 @@ export function EmailAuthForm({
   title = "Sign in",
   description = "Use your email and password to continue.",
   allowSignup = true,
-  signupMode = "supabase",
+  signupMode = "admin",
   inviteCode,
 }: EmailAuthFormProps) {
   const router = useRouter();
@@ -101,10 +101,15 @@ export function EmailAuthForm({
         }),
       });
 
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
       if (!response.ok) {
-        setError(formatAuthError(payload.error || "Could not create account."));
+        const message = formatAuthError(payload.error || "Could not create account.");
+
+        if (response.status === 409 && payload.code === "USER_EXISTS") {
+          setMode("signin");
+        }
+
+        setError(message);
         setLoading(false);
         return;
       }
