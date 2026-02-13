@@ -157,7 +157,7 @@ body::before {
   outline-offset: 2px;
 }
 
-:where(input, textarea, select) {
+:where(a, button, input, textarea, select) {
   touch-action: manipulation;
 }
 
