@@ -11,26 +11,26 @@ export default function TestLoginPage() {
 
   const e2eEnabled = process.env.NEXT_PUBLIC_E2E_TEST_MODE === "true";
 
+  // Hooks must be unconditional (even when the page is disabled).
+  const [hydrated, setHydrated] = useState(false);
+  const [email, setEmail] = useState(process.env.NEXT_PUBLIC_E2E_USER_EMAIL ?? "");
+  const [password, setPassword] = useState(process.env.NEXT_PUBLIC_E2E_USER_PASSWORD ?? "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!e2eEnabled) {
       router.replace("/");
+      return;
     }
+
+    // In E2E we want to avoid interacting before React has hydrated.
+    setHydrated(true);
   }, [e2eEnabled, router]);
 
   if (!e2eEnabled) {
     return null;
   }
-
-  // In E2E we want to avoid interacting before React has hydrated.
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-
-  const [email, setEmail] = useState(process.env.NEXT_PUBLIC_E2E_USER_EMAIL ?? "");
-  const [password, setPassword] = useState(process.env.NEXT_PUBLIC_E2E_USER_PASSWORD ?? "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,7 +70,11 @@ export default function TestLoginPage() {
       >
         <h1 className="text-xl font-bold text-text-primary">E2E Test Login</h1>
 
-        {hydrated && <div data-testid="hydrated" className="sr-only">hydrated</div>}
+        {hydrated && (
+          <div data-testid="hydrated" className="sr-only">
+            hydrated
+          </div>
+        )}
 
         <div className="space-y-2">
           <label

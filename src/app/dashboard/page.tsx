@@ -182,7 +182,7 @@ export default function DashboardPage() {
               <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
                 Daily motivation
               </p>
-              <p className="mt-2 text-sm text-text-primary">"{quoteOfTheDay.text}"</p>
+              <p className="mt-2 text-sm text-text-primary">&ldquo;{quoteOfTheDay.text}&rdquo;</p>
               <p className="mt-1 text-xs text-text-muted">- {quoteOfTheDay.author}</p>
             </div>
           </div>
