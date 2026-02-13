@@ -110,17 +110,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ memberStatuses: [] }, { status: 200 });
     }
 
-    const timezone = getTimezone(request);
-    const today = getLocalDate(new Date(), timezone);
+    const fallbackTimezone = getTimezone(request);
+    const now = new Date();
 
-    const [profilesResult, completionsResult, progressResult] = await Promise.all([
+    const [profilesResult, settingsResult, progressResult] = await Promise.all([
       db.from("profiles").select("id, display_name, avatar_url, created_at").in("id", userIds),
-      db
-        .from("task_completions")
-        .select("user_id, task_key")
-        .eq("group_id", groupId)
-        .eq("date", today)
-        .in("user_id", userIds),
+      db.from("user_settings").select("user_id, timezone").in("user_id", userIds),
       db.from("challenge_progress").select("*").eq("group_id", groupId).in("user_id", userIds),
     ]);
 
@@ -128,13 +123,48 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: profilesResult.error.message }, { status: 500 });
     }
 
+    if (progressResult.error) {
+      return NextResponse.json({ error: progressResult.error.message }, { status: 500 });
+    }
+
+    const timezoneByUser = new Map<string, string>();
+    if (!settingsResult.error) {
+      for (const row of settingsResult.data ?? []) {
+        const record = row as { user_id?: string | null; timezone?: string | null };
+        if (record.user_id && typeof record.timezone === "string") {
+          timezoneByUser.set(record.user_id, record.timezone);
+        }
+      }
+    } else {
+      console.warn("Failed to load user_settings timezones:", settingsResult.error.message);
+    }
+
+    const localDateByUser = new Map<string, string>();
+    const dateSet = new Set<string>();
+    for (const uid of userIds) {
+      const rawTz = timezoneByUser.get(uid);
+      const tz = isValidTimezone(rawTz) ? rawTz : fallbackTimezone;
+      const localDate = getLocalDate(now, tz);
+      localDateByUser.set(uid, localDate);
+      dateSet.add(localDate);
+    }
+
+    const dates = Array.from(dateSet);
+    const completionsResult = dates.length
+      ? await db
+          .from("task_completions")
+          .select("user_id, task_key, date")
+          .eq("group_id", groupId)
+          .in("user_id", userIds)
+          .in("date", dates)
+      : { data: [], error: null };
+
     if (completionsResult.error) {
       return NextResponse.json({ error: completionsResult.error.message }, { status: 500 });
     }
 
-    if (progressResult.error) {
-      return NextResponse.json({ error: progressResult.error.message }, { status: 500 });
-    }
+
+
 
     const profilesById = new Map(
       ((profilesResult.data ?? []) as ProfileRow[]).map((profile) => [profile.id, profile])
@@ -143,6 +173,9 @@ export async function GET(request: Request) {
     const completionsByUser: Record<string, string[]> = {};
     for (const completion of completionsResult.data ?? []) {
       const uid = completion.user_id as string;
+      const expectedDate = localDateByUser.get(uid);
+      const rowDate = completion.date as unknown as string | null | undefined;
+      if (!expectedDate || !rowDate || rowDate !== expectedDate) continue;
       if (!completionsByUser[uid]) {
         completionsByUser[uid] = [];
       }
@@ -165,7 +198,7 @@ export async function GET(request: Request) {
             created_at: "",
           },
         completedTasks,
-        currentDay: getDisplayDay(progress, today),
+        currentDay: getDisplayDay(progress, localDateByUser.get(uid) ?? getLocalDate(now, fallbackTimezone)),
         progress,
       };
     });
