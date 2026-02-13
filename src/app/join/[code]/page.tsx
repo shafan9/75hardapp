@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -66,10 +66,13 @@ export default function JoinGroupPage({
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const autoJoinAttemptedRef = useRef(false);
+
   useEffect(() => {
     async function loadInviteData() {
       setLoadingPreview(true);
       setError(null);
+      autoJoinAttemptedRef.current = false;
 
       const {
         data: { user },
@@ -98,7 +101,15 @@ export default function JoinGroupPage({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(Boolean(session?.user));
+      const nextLoggedIn = Boolean(session?.user);
+      setIsLoggedIn(nextLoggedIn);
+
+      if (!nextLoggedIn) {
+        autoJoinAttemptedRef.current = false;
+        setJoined(false);
+        setJoining(false);
+        setError(null);
+      }
     });
 
     return () => {
@@ -140,11 +151,13 @@ export default function JoinGroupPage({
       setJoining(false);
     }
   }, [groupInfo, joining, router, toast, timezone]);
-
   useEffect(() => {
-    if (!isLoggedIn || !groupInfo || joined || joining) return;
+    if (!isLoggedIn || !groupInfo || joined) return;
+    if (autoJoinAttemptedRef.current) return;
+
+    autoJoinAttemptedRef.current = true;
     void handleJoin();
-  }, [groupInfo, handleJoin, isLoggedIn, joined, joining]);
+  }, [groupInfo, handleJoin, isLoggedIn, joined]);
 
   if (loadingPreview || isLoggedIn === null) {
     return (
