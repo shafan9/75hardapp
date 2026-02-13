@@ -212,7 +212,7 @@ export default function JoinGroupPage({
           <EmailAuthForm
             nextPath={`/join/${code}`}
             title="Sign in to join"
-            description="Create an account or sign in, then tap Join Squad."
+            description="Create an account or sign in. You'll join automatically."
             signupMode="admin"
             inviteCode={code}
           />

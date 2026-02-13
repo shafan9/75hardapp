@@ -263,7 +263,7 @@ export default function MemberHistoryPage() {
 
         {groupLoading || loading ? (
           <div className="mt-4 rounded-xl border border-border bg-bg-surface p-4 text-sm text-text-secondary">
-            Loading...
+            Loading…
           </div>
         ) : payload ? (
           <div className="mt-4 space-y-2">

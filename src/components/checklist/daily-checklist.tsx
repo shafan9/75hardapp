@@ -153,7 +153,7 @@ export function DailyChecklist({
                     value={newTaskName}
                     onChange={(e) => setNewTaskName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddTask()}
-                    placeholder="Task name..."
+                    placeholder="Task name…"
                     className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                     maxLength={40}
                   />
