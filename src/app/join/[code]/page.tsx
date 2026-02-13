@@ -54,6 +54,11 @@ export default function JoinGroupPage({
   const toast = useToast();
   const supabase = useMemo(() => createClient(), []);
 
+  const timezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    []
+  );
+
   const [groupInfo, setGroupInfo] = useState<InviteGroupInfo | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(true);
@@ -110,7 +115,8 @@ export default function JoinGroupPage({
     try {
       const response = await fetch("/api/group", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Timezone": timezone },
+        credentials: "same-origin",
         body: JSON.stringify({ action: "join", inviteCode: groupInfo.inviteCode }),
       });
 

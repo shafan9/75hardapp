@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_TASK_KEYS, TOTAL_DAYS } from "@/lib/constants";
+import {
+  addDays,
+  diffDays,
+  getLocalDate,
+  getTimezoneFromRequest,
+  isValidTimezone,
+} from "@/lib/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,58 +25,39 @@ function getDbClient() {
   return createAdminClient();
 }
 
-function isValidTimezone(value: string | null | undefined): value is string {
-  if (!value) return false;
-  try {
-    Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
+function clampDayNumber(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 0) return 0;
+  return Math.min(Math.floor(value), TOTAL_DAYS);
 }
 
-function getTimezone(request: Request) {
-  const header = request.headers.get("x-timezone") ?? request.headers.get("X-Timezone");
-  const url = new URL(request.url);
-  const query = url.searchParams.get("tz");
-  const tz = (header ?? query ?? "").trim();
-  return isValidTimezone(tz) ? tz : "UTC";
+function getDayNumber(startDate: string | null | undefined, today: string) {
+  if (!startDate) return 0;
+  const delta = diffDays(startDate, today);
+  return clampDayNumber(Math.max(delta + 1, 1));
 }
 
-function getLocalDate(now: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-
-  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const year = map.year ?? "1970";
-  const month = map.month ?? "01";
-  const day = map.day ?? "01";
-
-  return `${year}-${month}-${day}`;
-}
-
-function getDisplayDay(progress: unknown, today: string) {
+function getActiveStreak(progress: unknown, today: string) {
   if (!progress) return 0;
 
   const row = progress as { current_day?: number | null; last_completed_date?: string | null };
-  const completedDays = Number(row.current_day ?? 0);
+  const streak = Number(row.current_day ?? 0);
+  const lastCompleted = row.last_completed_date ?? null;
 
-  if (completedDays >= TOTAL_DAYS) return TOTAL_DAYS;
+  if (!lastCompleted || streak <= 0) return 0;
 
-  const base = row.last_completed_date === today ? completedDays : completedDays + 1;
-  return Math.min(Math.max(base, 1), TOTAL_DAYS);
+  const yesterday = addDays(today, -1);
+  if (lastCompleted === today || lastCompleted === yesterday) return streak;
+
+  return 0;
 }
 
 async function awardStreakAchievements(
   db: ReturnType<typeof getDbClient>,
   userId: string,
-  currentDay: number
+  streak: number
 ) {
-  const rows = STREAK_ACHIEVEMENTS.filter((item) => currentDay >= item.threshold).map((item) => ({
+  const rows = STREAK_ACHIEVEMENTS.filter((item) => streak >= item.threshold).map((item) => ({
     user_id: userId,
     achievement_key: item.key,
   }));
@@ -101,9 +89,7 @@ async function ensureGroupAccess(
     throw new Error(`Could not validate group membership: ${membershipError.message}`);
   }
 
-  if (membership) {
-    return;
-  }
+  if (membership) return;
 
   const { data: ownedGroup, error: ownedGroupError } = await db
     .from("groups")
@@ -127,11 +113,74 @@ async function ensureGroupAccess(
   });
 }
 
+async function getSquadTimezone(
+  db: ReturnType<typeof getDbClient>,
+  groupId: string,
+  fallbackTimezone: string,
+  requesterId: string
+) {
+  const { data: group, error: groupError } = await db
+    .from("groups")
+    .select("created_by")
+    .eq("id", groupId)
+    .maybeSingle();
+
+  if (groupError || !group) {
+    return fallbackTimezone;
+  }
+
+  const ownerId = (group as { created_by?: string | null }).created_by;
+  if (!ownerId) return fallbackTimezone;
+
+  const { data: settings, error: settingsError } = await db
+    .from("user_settings")
+    .select("timezone")
+    .eq("user_id", ownerId)
+    .maybeSingle();
+
+  if (!settingsError) {
+    const rawTz = (settings as { timezone?: string | null })?.timezone ?? null;
+    if (isValidTimezone(rawTz)) return rawTz;
+  }
+
+  if (ownerId === requesterId && isValidTimezone(fallbackTimezone)) {
+    await db
+      .from("user_settings")
+      .upsert({ user_id: ownerId, timezone: fallbackTimezone }, { onConflict: "user_id" });
+    return fallbackTimezone;
+  }
+
+  return fallbackTimezone;
+}
+
+async function getSquadStartDate(
+  db: ReturnType<typeof getDbClient>,
+  groupId: string,
+  squadTimezone: string,
+  fallbackDate: string
+) {
+  const { data: group, error: groupError } = await db
+    .from("groups")
+    .select("created_at")
+    .eq("id", groupId)
+    .maybeSingle();
+
+  if (groupError || !group) {
+    return fallbackDate;
+  }
+
+  const createdAt = (group as { created_at?: string | null }).created_at;
+  if (!createdAt) return fallbackDate;
+
+  const local = getLocalDate(new Date(createdAt), squadTimezone);
+  return local || fallbackDate;
+}
+
 async function ensureProgressRow(
   db: ReturnType<typeof getDbClient>,
   userId: string,
   groupId: string,
-  today: string
+  squadStartDate: string
 ) {
   const { data: existingProgress, error: progressError } = await db
     .from("challenge_progress")
@@ -145,6 +194,22 @@ async function ensureProgressRow(
   }
 
   if (existingProgress) {
+    const existingStart = (existingProgress as { start_date?: string | null }).start_date ?? null;
+    const existingId = (existingProgress as { id?: string }).id;
+
+    if (existingId && existingStart && existingStart !== squadStartDate) {
+      const { data: updated, error: updateError } = await db
+        .from("challenge_progress")
+        .update({ start_date: squadStartDate })
+        .eq("id", existingId)
+        .select("*")
+        .single();
+
+      if (!updateError && updated) {
+        return updated;
+      }
+    }
+
     return existingProgress;
   }
 
@@ -153,7 +218,7 @@ async function ensureProgressRow(
     .insert({
       user_id: userId,
       group_id: groupId,
-      start_date: today,
+      start_date: squadStartDate,
       current_day: 0,
       is_active: true,
     })
@@ -167,11 +232,65 @@ async function ensureProgressRow(
   return createdProgress;
 }
 
+async function recomputeStreak(
+  db: ReturnType<typeof getDbClient>,
+  userId: string,
+  groupId: string,
+  startDate: string,
+  today: string
+) {
+  const { data, error } = await db
+    .from("task_completions")
+    .select("task_key,date")
+    .eq("user_id", userId)
+    .eq("group_id", groupId)
+    .in("task_key", [...DEFAULT_TASK_KEYS] as string[])
+    .gte("date", startDate)
+    .lte("date", today);
+
+  if (error) {
+    throw new Error(`Could not recompute streak: ${error.message}`);
+  }
+
+  const byDate = new Map<string, Set<string>>();
+  for (const row of data ?? []) {
+    const date = row.date as unknown as string;
+    const taskKey = row.task_key as unknown as string;
+    if (!date || !taskKey) continue;
+    if (!byDate.has(date)) byDate.set(date, new Set());
+    byDate.get(date)?.add(taskKey);
+  }
+
+  const completedDates = new Set<string>();
+  for (const [date, set] of byDate.entries()) {
+    if (set.size >= DEFAULT_TASK_KEYS.length) {
+      completedDates.add(date);
+    }
+  }
+
+  const sorted = [...completedDates].sort();
+  const lastCompletedDate = sorted.length ? sorted[sorted.length - 1] : null;
+
+  if (!lastCompletedDate) {
+    return { streak: 0, lastCompletedDate: null };
+  }
+
+  let streak = 1;
+  let cursor = addDays(lastCompletedDate, -1);
+  while (streak < TOTAL_DAYS && completedDates.has(cursor)) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  return { streak, lastCompletedDate };
+}
+
 async function getChecklistState(
   db: ReturnType<typeof getDbClient>,
   userId: string,
   groupId: string | null,
-  today: string
+  today: string,
+  squadStartDate: string | null
 ) {
   const { data: customTasks, error: customTaskError } = await db
     .from("custom_tasks")
@@ -183,14 +302,17 @@ async function getChecklistState(
     throw new Error(`Could not load custom tasks: ${customTaskError.message}`);
   }
 
-  if (!groupId) {
+  if (!groupId || !squadStartDate) {
     return {
-      groupId: null,
+      groupId: groupId ?? null,
       customTasks: customTasks ?? [],
       todayCompleted: [],
       progress: null,
       currentDay: 0,
+      streak: 0,
       isAllDone: false,
+      squadDate: today,
+      squadStartDate,
     };
   }
 
@@ -203,7 +325,7 @@ async function getChecklistState(
       .eq("user_id", userId)
       .eq("group_id", groupId)
       .eq("date", today),
-    ensureProgressRow(db, userId, groupId, today),
+    ensureProgressRow(db, userId, groupId, squadStartDate),
   ]);
 
   if (completionsResult.error) {
@@ -217,8 +339,11 @@ async function getChecklistState(
     customTasks: customTasks ?? [],
     todayCompleted,
     progress,
-    currentDay: getDisplayDay(progress, today),
+    currentDay: getDayNumber(squadStartDate, today),
+    streak: getActiveStreak(progress, today),
     isAllDone: DEFAULT_TASK_KEYS.every((key) => todayCompleted.includes(key)),
+    squadDate: today,
+    squadStartDate,
   };
 }
 
@@ -237,10 +362,19 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const groupId = url.searchParams.get("groupId");
 
-    const timezone = getTimezone(request);
-    const today = getLocalDate(new Date(), timezone);
+    const fallbackTimezone = getTimezoneFromRequest(request);
 
-    const state = await getChecklistState(db, user.id, groupId, today);
+    if (!groupId) {
+      const today = getLocalDate(new Date(), fallbackTimezone);
+      const state = await getChecklistState(db, user.id, null, today, null);
+      return NextResponse.json(state, { status: 200 });
+    }
+
+    const squadTimezone = await getSquadTimezone(db, groupId, fallbackTimezone, user.id);
+    const today = getLocalDate(new Date(), squadTimezone);
+    const squadStartDate = await getSquadStartDate(db, groupId, squadTimezone, today);
+
+    const state = await getChecklistState(db, user.id, groupId, today, squadStartDate);
     return NextResponse.json(state, { status: 200 });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -260,7 +394,7 @@ export async function POST(request: Request) {
     }
 
     const db = getDbClient();
-    const body = (await request.json()) as {
+    const body = (await request.json().catch(() => ({}))) as {
       action?: "toggleTask" | "addNote" | "addCustomTask" | "removeCustomTask";
       groupId?: string;
       taskKey?: string;
@@ -270,8 +404,18 @@ export async function POST(request: Request) {
       id?: string;
     };
 
-    const timezone = getTimezone(request);
-    const today = getLocalDate(new Date(), timezone);
+    const fallbackTimezone = getTimezoneFromRequest(request);
+
+    const groupId = body.groupId ?? null;
+
+    const squadTimezone = groupId
+      ? await getSquadTimezone(db, groupId, fallbackTimezone, user.id)
+      : fallbackTimezone;
+
+    const today = getLocalDate(new Date(), squadTimezone);
+    const squadStartDate = groupId
+      ? await getSquadStartDate(db, groupId, squadTimezone, today)
+      : null;
 
     if (body.action === "addCustomTask") {
       const name = body.name?.trim();
@@ -291,7 +435,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      const state = await getChecklistState(db, user.id, body.groupId ?? null, today);
+      const state = await getChecklistState(db, user.id, groupId, today, squadStartDate);
       return NextResponse.json(state, { status: 200 });
     }
 
@@ -310,7 +454,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      const state = await getChecklistState(db, user.id, body.groupId ?? null, today);
+      const state = await getChecklistState(db, user.id, groupId, today, squadStartDate);
       return NextResponse.json(state, { status: 200 });
     }
 
@@ -333,13 +477,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      const state = await getChecklistState(db, user.id, body.groupId, today);
+      const state = await getChecklistState(db, user.id, body.groupId, today, squadStartDate);
       return NextResponse.json(state, { status: 200 });
     }
 
     if (body.action === "toggleTask") {
       if (!body.groupId || !body.taskKey) {
         return NextResponse.json({ error: "groupId and taskKey are required." }, { status: 400 });
+      }
+
+      if (!squadStartDate) {
+        return NextResponse.json({ error: "Could not determine squad start date." }, { status: 500 });
       }
 
       await ensureGroupAccess(db, user.id, body.groupId);
@@ -379,7 +527,7 @@ export async function POST(request: Request) {
         }
       }
 
-      const progress = await ensureProgressRow(db, user.id, body.groupId, today);
+      const progress = await ensureProgressRow(db, user.id, body.groupId, squadStartDate);
 
       const { data: latestCompletions, error: completionError } = await db
         .from("task_completions")
@@ -393,19 +541,31 @@ export async function POST(request: Request) {
       }
 
       const todayCompleted = (latestCompletions ?? []).map((row) => row.task_key as string);
-      const allDone = DEFAULT_TASK_KEYS.every((key) => todayCompleted.includes(key));
+
+      const { streak, lastCompletedDate } = await recomputeStreak(
+        db,
+        user.id,
+        body.groupId,
+        squadStartDate,
+        today
+      );
 
       let updatedProgress = progress;
-      if (allDone && (progress as { last_completed_date?: string | null })?.last_completed_date !== today) {
-        const nextDay = Math.min(Number((progress as { current_day?: number | null })?.current_day ?? 0) + 1, TOTAL_DAYS);
+      const progressId = (progress as { id?: string }).id;
 
+      if (
+        progressId &&
+        (Number((progress as { current_day?: number | null }).current_day ?? 0) !== streak ||
+          ((progress as { last_completed_date?: string | null }).last_completed_date ?? null) !==
+            lastCompletedDate)
+      ) {
         const { data: progressData, error: progressUpdateError } = await db
           .from("challenge_progress")
           .update({
-            current_day: nextDay,
-            last_completed_date: today,
+            current_day: streak,
+            last_completed_date: lastCompletedDate,
           })
-          .eq("id", (progress as { id: string }).id)
+          .eq("id", progressId)
           .select("*")
           .single();
 
@@ -415,7 +575,9 @@ export async function POST(request: Request) {
 
         updatedProgress = progressData;
 
-        await awardStreakAchievements(db, user.id, nextDay);
+        if (lastCompletedDate === today && streak > 0) {
+          await awardStreakAchievements(db, user.id, streak);
+        }
       }
 
       const { data: customTasks, error: customTaskError } = await db
@@ -434,8 +596,11 @@ export async function POST(request: Request) {
           customTasks: customTasks ?? [],
           todayCompleted,
           progress: updatedProgress,
-          currentDay: getDisplayDay(updatedProgress, today),
+          currentDay: getDayNumber(squadStartDate, today),
+          streak: getActiveStreak(updatedProgress, today),
           isAllDone: DEFAULT_TASK_KEYS.every((key) => todayCompleted.includes(key)),
+          squadDate: today,
+          squadStartDate,
         },
         { status: 200 }
       );

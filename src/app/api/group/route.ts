@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateInviteCode } from "@/lib/utils";
+import { getLocalDate, getTimezoneFromRequest, isValidTimezone } from "@/lib/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +65,18 @@ async function ensureProfile(
 
   if (error) {
     throw new Error(`Could not ensure profile: ${error.message}`);
+  }
+}
+
+async function ensureUserTimezone(db: ReturnType<typeof getDbClient>, userId: string, timezone: string) {
+  if (!isValidTimezone(timezone)) return;
+
+  const { error } = await db
+    .from("user_settings")
+    .upsert({ user_id: userId, timezone }, { onConflict: "user_id" });
+
+  if (error) {
+    console.warn("Could not upsert user_settings timezone:", error.message);
   }
 }
 
@@ -166,10 +179,59 @@ async function buildGroupState(db: ReturnType<typeof getDbClient>, userId: strin
   };
 }
 
+async function getGroupStartDate(db: ReturnType<typeof getDbClient>, groupId: string, fallbackDate: string) {
+  const { data, error } = await db
+    .from("challenge_progress")
+    .select("start_date")
+    .eq("group_id", groupId)
+    .order("start_date", { ascending: true })
+    .limit(1);
+
+  if (error) {
+    return fallbackDate;
+  }
+
+  const first = (data?.[0] as { start_date?: string } | undefined)?.start_date;
+  return typeof first === "string" && first ? first : fallbackDate;
+}
+
+async function ensureProgressRow(
+  db: ReturnType<typeof getDbClient>,
+  userId: string,
+  groupId: string,
+  startDate: string
+) {
+  const { data: existing, error } = await db
+    .from("challenge_progress")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("group_id", groupId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Could not load challenge progress: ${error.message}`);
+  }
+
+  if (existing) return;
+
+  const { error: insertError } = await db.from("challenge_progress").insert({
+    user_id: userId,
+    group_id: groupId,
+    start_date: startDate,
+    current_day: 0,
+    is_active: true,
+  });
+
+  if (insertError && (insertError as { code?: string }).code !== "23505") {
+    throw new Error(`Could not initialize challenge progress: ${insertError.message}`);
+  }
+}
+
 async function createGroup(
   db: ReturnType<typeof getDbClient>,
   userId: string,
-  name: string
+  name: string,
+  startDate: string
 ): Promise<GroupRow> {
   let createdGroup: GroupRow | null = null;
   let lastError: { code?: string; message?: string } | null = null;
@@ -200,8 +262,6 @@ async function createGroup(
     throw new Error(lastError?.message ?? "Could not create squad.");
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-
   const { error: membershipError } = await db.from("group_members").insert({
     group_id: createdGroup.id,
     user_id: userId,
@@ -212,20 +272,7 @@ async function createGroup(
     throw new Error(`Could not add creator to squad: ${membershipError.message}`);
   }
 
-  const { error: progressError } = await db.from("challenge_progress").upsert(
-    {
-      user_id: userId,
-      group_id: createdGroup.id,
-      start_date: today,
-      current_day: 0,
-      is_active: true,
-    },
-    { onConflict: "user_id,group_id" }
-  );
-
-  if (progressError) {
-    throw new Error(`Could not initialize challenge progress: ${progressError.message}`);
-  }
+  await ensureProgressRow(db, userId, createdGroup.id, startDate);
 
   return createdGroup;
 }
@@ -233,7 +280,8 @@ async function createGroup(
 async function joinGroup(
   db: ReturnType<typeof getDbClient>,
   userId: string,
-  inviteCode: string
+  inviteCode: string,
+  fallbackStartDate: string
 ): Promise<GroupRow> {
   const { data: groupData, error: groupError } = await db
     .from("groups")
@@ -246,7 +294,6 @@ async function joinGroup(
   }
 
   const group = groupData as GroupRow;
-  const today = new Date().toISOString().slice(0, 10);
 
   const { error: membershipError } = await db.from("group_members").insert({
     group_id: group.id,
@@ -258,26 +305,15 @@ async function joinGroup(
     throw new Error(`Could not join squad: ${membershipError.message}`);
   }
 
-  const { error: progressError } = await db.from("challenge_progress").upsert(
-    {
-      user_id: userId,
-      group_id: group.id,
-      start_date: today,
-      is_active: true,
-    },
-    { onConflict: "user_id,group_id" }
-  );
-
-  if (progressError) {
-    throw new Error(`Could not initialize challenge progress: ${progressError.message}`);
-  }
+  const startDate = await getGroupStartDate(db, group.id, fallbackStartDate);
+  await ensureProgressRow(db, userId, group.id, startDate);
 
   return group;
 }
 
 export async function GET() {
   try {
-    const { user, sessionClient } = await getAuthenticatedUser();
+    const { user } = await getAuthenticatedUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -293,7 +329,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { user, sessionClient } = await getAuthenticatedUser();
+    const { user } = await getAuthenticatedUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -301,7 +337,12 @@ export async function POST(request: Request) {
     const db = getDbClient();
     await ensureProfile(db, user);
 
-    const body = (await request.json()) as {
+    const timezone = getTimezoneFromRequest(request);
+    await ensureUserTimezone(db, user.id, timezone);
+
+    const today = getLocalDate(new Date(), timezone);
+
+    const body = (await request.json().catch(() => ({}))) as {
       action?: string;
       name?: string;
       inviteCode?: string;
@@ -313,7 +354,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Squad name is required." }, { status: 400 });
       }
 
-      await createGroup(db, user.id, name);
+      await createGroup(db, user.id, name, today);
       const state = await buildGroupState(db, user.id);
       return NextResponse.json(state, { status: 200 });
     }
@@ -324,7 +365,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Invite code is required." }, { status: 400 });
       }
 
-      await joinGroup(db, user.id, inviteCode);
+      await joinGroup(db, user.id, inviteCode, today);
       const state = await buildGroupState(db, user.id);
       return NextResponse.json(state, { status: 200 });
     }

@@ -20,6 +20,11 @@ export function useGroup() {
   const supabase = useMemo(() => createClient(), []);
   const authRetryRef = useRef(false);
 
+  const timezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    []
+  );
+
   const applyState = useCallback((payload: GroupStateResponse) => {
     setGroup(payload.group ?? null);
     setMembers((payload.members ?? []) as GroupMember[]);
@@ -102,7 +107,8 @@ export function useGroup() {
     try {
       const response = await fetch("/api/group", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Timezone": timezone },
+        credentials: "same-origin",
         body: JSON.stringify({ action: "create", name }),
       });
 
@@ -126,7 +132,8 @@ export function useGroup() {
     try {
       const response = await fetch("/api/group", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Timezone": timezone },
+        credentials: "same-origin",
         body: JSON.stringify({ action: "join", inviteCode }),
       });
 

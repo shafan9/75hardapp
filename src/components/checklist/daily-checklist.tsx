@@ -17,7 +17,6 @@ interface DailyChecklistProps {
   onAddNote: (key: string, note: string) => void;
   onAddCustomTask: (name: string, emoji: string) => void;
   onRemoveCustomTask: (id: string) => void;
-  currentDay: number;
   isAllDone: boolean;
 }
 
@@ -28,7 +27,6 @@ export function DailyChecklist({
   onAddNote,
   onAddCustomTask,
   onRemoveCustomTask,
-  currentDay,
   isAllDone,
 }: DailyChecklistProps) {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -49,17 +47,6 @@ export function DailyChecklist({
       {/* Confetti when all done */}
       <ConfettiTrigger trigger={isAllDone} />
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-text-primary">Checklist</h2>
-          <p className="text-xs text-text-muted">Day {currentDay}</p>
-        </div>
-        <span className="text-sm font-semibold text-text-secondary">
-          {DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).filter((t) => completions.includes(t.key)).length} / {DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).length} required
-        </span>
-      </div>
-
       {/* All done celebration banner */}
       <AnimatePresence>
         {isAllDone && (
@@ -69,12 +56,10 @@ export function DailyChecklist({
             exit={{ opacity: 0, scale: 0.9, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="rounded-2xl bg-gradient-to-r from-accent-violet/20 via-accent-pink/20 to-accent-amber/20 border border-accent-emerald/30 p-4 text-center">
-              <p className="text-2xl font-bold gradient-text">
-                ALL TASKS DONE! 🎉
-              </p>
-              <p className="text-sm text-text-secondary mt-1">
-                You crushed it today! Keep the streak alive 💪
+            <div className="rounded-2xl border border-accent-emerald/30 bg-gradient-to-r from-accent-violet/20 via-accent-pink/20 to-accent-amber/20 p-4 text-center">
+              <p className="text-2xl font-bold gradient-text">ALL TASKS DONE!</p>
+              <p className="mt-1 text-sm text-text-secondary">
+                You crushed it today! Keep the momentum going.
               </p>
             </div>
           </motion.div>
@@ -110,9 +95,7 @@ export function DailyChecklist({
       {/* Custom tasks section */}
       <div className="mt-6 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-text-secondary">
-            Custom Tasks ✨
-          </h3>
+          <h3 className="text-sm font-semibold text-text-secondary">Custom Tasks</h3>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className={cn(
@@ -136,10 +119,10 @@ export function DailyChecklist({
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="overflow-hidden"
             >
-              <div className="rounded-2xl border border-border bg-bg-card p-4 space-y-3">
+              <div className="space-y-3 rounded-2xl border border-border bg-bg-card p-4">
                 {/* Emoji picker */}
                 <div>
-                  <p className="text-xs text-text-muted mb-2">Pick an emoji:</p>
+                  <p className="mb-2 text-xs text-text-muted">Pick an emoji:</p>
                   <div className="flex flex-wrap gap-2">
                     {EMOJI_OPTIONS.map((e) => (
                       <button
@@ -170,14 +153,14 @@ export function DailyChecklist({
                     value={newTaskName}
                     onChange={(e) => setNewTaskName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddTask()}
-                    placeholder="Task name…"
+                    placeholder="Task name..."
                     className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                     maxLength={40}
                   />
                   <button
                     onClick={handleAddTask}
                     disabled={!newTaskName.trim()}
-                    className="rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
+                    className="rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 transition-opacity hover:opacity-90"
                   >
                     Add
                   </button>
@@ -211,10 +194,12 @@ export function DailyChecklist({
                 </div>
                 <button
                   onClick={() => onRemoveCustomTask(task.id)}
-                  className="flex-shrink-0 rounded-lg p-2 text-text-muted hover:bg-accent-red/10 hover:text-accent-red transition-colors"
+                  className="flex-shrink-0 rounded-lg p-2 text-text-muted transition-colors hover:bg-accent-red/10 hover:text-accent-red"
                   aria-label={`Remove ${task.name}`}
                 >
-                  <svg aria-hidden="true" focusable="false"
+                  <svg
+                    aria-hidden="true"
+                    focusable="false"
                     width="14"
                     height="14"
                     viewBox="0 0 14 14"
@@ -232,8 +217,8 @@ export function DailyChecklist({
         </AnimatePresence>
 
         {customTasks.length === 0 && !showAddForm && (
-          <p className="text-center text-xs text-text-muted py-2">
-            No custom tasks yet. Add one above! 🎯
+          <p className="py-2 text-center text-xs text-text-muted">
+            No custom tasks yet. Add one above.
           </p>
         )}
       </div>

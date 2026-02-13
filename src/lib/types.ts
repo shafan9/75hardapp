@@ -128,5 +128,6 @@ export interface MemberDayStatus {
   profile: Profile;
   completedTasks: string[];
   currentDay: number;
+  streak: number;
   progress: ChallengeProgress | null;
 }

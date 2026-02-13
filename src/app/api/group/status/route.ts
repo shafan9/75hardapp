@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_TASK_KEYS, TOTAL_DAYS } from "@/lib/constants";
+import {
+  addDays,
+  diffDays,
+  getLocalDate,
+  getTimezoneFromRequest,
+  isValidTimezone,
+} from "@/lib/time";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,47 +24,93 @@ function getDbClient() {
   return createAdminClient();
 }
 
-function isValidTimezone(value: string | null | undefined): value is string {
-  if (!value) return false;
-  try {
-    Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
+function clampDayNumber(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 0) return 0;
+  return Math.min(Math.floor(value), TOTAL_DAYS);
 }
 
-function getTimezone(request: Request) {
-  const header = request.headers.get("x-timezone") ?? request.headers.get("X-Timezone");
-  const url = new URL(request.url);
-  const query = url.searchParams.get("tz");
-  const tz = (header ?? query ?? "").trim();
-  return isValidTimezone(tz) ? tz : "UTC";
+function getDayNumber(startDate: string | null | undefined, today: string) {
+  if (!startDate) return 0;
+  const delta = diffDays(startDate, today);
+  return clampDayNumber(Math.max(delta + 1, 1));
 }
 
-function getLocalDate(now: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-
-  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const year = map.year ?? "1970";
-  const month = map.month ?? "01";
-  const day = map.day ?? "01";
-
-  return `${year}-${month}-${day}`;
-}
-
-function getDisplayDay(progress: unknown, today: string) {
+function getActiveStreak(progress: unknown, today: string) {
   if (!progress) return 0;
+
   const row = progress as { current_day?: number | null; last_completed_date?: string | null };
-  const completedDays = Number(row.current_day ?? 0);
-  if (completedDays >= TOTAL_DAYS) return TOTAL_DAYS;
-  const base = row.last_completed_date === today ? completedDays : completedDays + 1;
-  return Math.min(Math.max(base, 1), TOTAL_DAYS);
+  const streak = Number(row.current_day ?? 0);
+  const lastCompleted = row.last_completed_date ?? null;
+
+  if (!lastCompleted || streak <= 0) return 0;
+
+  const yesterday = addDays(today, -1);
+  if (lastCompleted === today || lastCompleted === yesterday) return streak;
+
+  return 0;
+}
+
+async function getSquadTimezone(
+  db: ReturnType<typeof getDbClient>,
+  groupId: string,
+  fallbackTimezone: string,
+  requesterId: string
+) {
+  const { data: group, error: groupError } = await db
+    .from("groups")
+    .select("created_by")
+    .eq("id", groupId)
+    .maybeSingle();
+
+  if (groupError || !group) {
+    return fallbackTimezone;
+  }
+
+  const ownerId = (group as { created_by?: string | null }).created_by;
+  if (!ownerId) return fallbackTimezone;
+
+  const { data: settings, error: settingsError } = await db
+    .from("user_settings")
+    .select("timezone")
+    .eq("user_id", ownerId)
+    .maybeSingle();
+
+  if (!settingsError) {
+    const rawTz = (settings as { timezone?: string | null })?.timezone ?? null;
+    if (isValidTimezone(rawTz)) return rawTz;
+  }
+
+  if (ownerId === requesterId && isValidTimezone(fallbackTimezone)) {
+    await db
+      .from("user_settings")
+      .upsert({ user_id: ownerId, timezone: fallbackTimezone }, { onConflict: "user_id" });
+    return fallbackTimezone;
+  }
+
+  return fallbackTimezone;
+}
+
+async function getSquadStartDate(
+  db: ReturnType<typeof getDbClient>,
+  groupId: string,
+  squadTimezone: string,
+  fallbackDate: string
+) {
+  const { data: group, error: groupError } = await db
+    .from("groups")
+    .select("created_at")
+    .eq("id", groupId)
+    .maybeSingle();
+
+  if (groupError || !group) {
+    return fallbackDate;
+  }
+
+  const createdAt = (group as { created_at?: string | null }).created_at;
+  if (!createdAt) return fallbackDate;
+
+  return getLocalDate(new Date(createdAt), squadTimezone) || fallbackDate;
 }
 
 export async function GET(request: Request) {
@@ -110,13 +163,25 @@ export async function GET(request: Request) {
       return NextResponse.json({ memberStatuses: [] }, { status: 200 });
     }
 
-    const fallbackTimezone = getTimezone(request);
-    const now = new Date();
+    const fallbackTimezone = getTimezoneFromRequest(request);
+    const squadTimezone = await getSquadTimezone(db, groupId, fallbackTimezone, user.id);
+    const today = getLocalDate(new Date(), squadTimezone);
+    const squadStartDate = await getSquadStartDate(db, groupId, squadTimezone, today);
+    const squadDayNumber = getDayNumber(squadStartDate, today);
 
-    const [profilesResult, settingsResult, progressResult] = await Promise.all([
+    const [profilesResult, progressResult, completionsResult] = await Promise.all([
       db.from("profiles").select("id, display_name, avatar_url, created_at").in("id", userIds),
-      db.from("user_settings").select("user_id, timezone").in("user_id", userIds),
-      db.from("challenge_progress").select("*").eq("group_id", groupId).in("user_id", userIds),
+      db
+        .from("challenge_progress")
+        .select("*")
+        .eq("group_id", groupId)
+        .in("user_id", userIds),
+      db
+        .from("task_completions")
+        .select("user_id, task_key")
+        .eq("group_id", groupId)
+        .in("user_id", userIds)
+        .eq("date", today),
     ]);
 
     if (profilesResult.error) {
@@ -127,44 +192,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: progressResult.error.message }, { status: 500 });
     }
 
-    const timezoneByUser = new Map<string, string>();
-    if (!settingsResult.error) {
-      for (const row of settingsResult.data ?? []) {
-        const record = row as { user_id?: string | null; timezone?: string | null };
-        if (record.user_id && typeof record.timezone === "string") {
-          timezoneByUser.set(record.user_id, record.timezone);
-        }
-      }
-    } else {
-      console.warn("Failed to load user_settings timezones:", settingsResult.error.message);
-    }
-
-    const localDateByUser = new Map<string, string>();
-    const dateSet = new Set<string>();
-    for (const uid of userIds) {
-      const rawTz = timezoneByUser.get(uid);
-      const tz = isValidTimezone(rawTz) ? rawTz : fallbackTimezone;
-      const localDate = getLocalDate(now, tz);
-      localDateByUser.set(uid, localDate);
-      dateSet.add(localDate);
-    }
-
-    const dates = Array.from(dateSet);
-    const completionsResult = dates.length
-      ? await db
-          .from("task_completions")
-          .select("user_id, task_key, date")
-          .eq("group_id", groupId)
-          .in("user_id", userIds)
-          .in("date", dates)
-      : { data: [], error: null };
-
     if (completionsResult.error) {
       return NextResponse.json({ error: completionsResult.error.message }, { status: 500 });
     }
-
-
-
 
     const profilesById = new Map(
       ((profilesResult.data ?? []) as ProfileRow[]).map((profile) => [profile.id, profile])
@@ -173,12 +203,7 @@ export async function GET(request: Request) {
     const completionsByUser: Record<string, string[]> = {};
     for (const completion of completionsResult.data ?? []) {
       const uid = completion.user_id as string;
-      const expectedDate = localDateByUser.get(uid);
-      const rowDate = completion.date as unknown as string | null | undefined;
-      if (!expectedDate || !rowDate || rowDate !== expectedDate) continue;
-      if (!completionsByUser[uid]) {
-        completionsByUser[uid] = [];
-      }
+      if (!completionsByUser[uid]) completionsByUser[uid] = [];
       completionsByUser[uid].push(completion.task_key as string);
     }
 
@@ -189,6 +214,7 @@ export async function GET(request: Request) {
     const memberStatuses = userIds.map((uid) => {
       const completedTasks = completionsByUser[uid] ?? [];
       const progress = progressByUser.get(uid) ?? null;
+
       return {
         profile:
           profilesById.get(uid) ?? {
@@ -198,7 +224,8 @@ export async function GET(request: Request) {
             created_at: "",
           },
         completedTasks,
-        currentDay: getDisplayDay(progress, localDateByUser.get(uid) ?? getLocalDate(now, fallbackTimezone)),
+        currentDay: squadDayNumber,
+        streak: getActiveStreak(progress, today),
         progress,
       };
     });
@@ -214,7 +241,10 @@ export async function GET(request: Request) {
       return bCompleted - aCompleted;
     });
 
-    return NextResponse.json({ memberStatuses }, { status: 200 });
+    return NextResponse.json(
+      { memberStatuses, squadDate: today, squadTimezone, squadStartDate },
+      { status: 200 }
+    );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });

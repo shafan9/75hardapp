@@ -212,7 +212,6 @@ export default function DashboardPage() {
             onAddNote={addNote}
             onAddCustomTask={addCustomTask}
             onRemoveCustomTask={removeCustomTask}
-            currentDay={currentDay}
             isAllDone={isAllDone}
           />
         ) : (

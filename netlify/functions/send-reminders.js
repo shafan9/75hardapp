@@ -1,6 +1,15 @@
-exports.config = {
-  schedule: "*/15 * * * *",
-};
+/**
+ * Reminders are optional.
+ *
+ * This function is intentionally NOT scheduled by default to avoid:
+ * - burning Netlify credits
+ * - sending emails/SMS during development
+ * - surprising squads with background traffic
+ *
+ * If you want scheduled reminders, re-add:
+ *
+ * exports.config = { schedule: "* /15 * * * *" };
+ */
 
 exports.handler = async () => {
   const siteUrl = process.env.SITE_URL || process.env.URL;
