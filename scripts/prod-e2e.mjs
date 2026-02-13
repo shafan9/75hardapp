@@ -59,11 +59,18 @@ const run = async () => {
 
   await page.waitForURL(/\/dashboard(\/.*)?$/, { timeout: 60_000 });
 
-  // Toggle two tasks.
+  // Toggle two tasks and wait for UI to reflect the save before reloading.
   await page.getByRole('button', { name: /Mark Outdoor Workout as complete/i }).click();
-  await page.getByRole('button', { name: /Mark Gallon of Water as complete/i }).click();
+  await page
+    .getByRole('button', { name: /Mark Outdoor Workout as incomplete/i })
+    .waitFor({ state: 'visible', timeout: 30_000 });
 
-  // Refresh and ensure tasks remain checked (buttons should now say "... as incomplete").
+  await page.getByRole('button', { name: /Mark Gallon of Water as complete/i }).click();
+  await page
+    .getByRole('button', { name: /Mark Gallon of Water as incomplete/i })
+    .waitFor({ state: 'visible', timeout: 30_000 });
+
+  // Refresh and ensure tasks remain checked.
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByRole('heading', { name: 'Today' }).waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -82,6 +89,9 @@ const run = async () => {
   // Ensure tasks still show as completed.
   await page.getByRole('button', { name: /Mark Outdoor Workout as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('button', { name: /Mark Gallon of Water as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
+
+  // Sanity: day label renders.
+  await expect(page.getByText(/Day \d+ of 75/)).toBeVisible();
 
   await browser.close();
   console.log('prod-e2e: OK');
