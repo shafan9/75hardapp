@@ -97,9 +97,10 @@ export function DailyChecklist({
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-text-secondary">Custom Tasks</h3>
           <button
+            type="button"
             onClick={() => setShowAddForm(!showAddForm)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary",
               showAddForm
                 ? "bg-accent-red/10 text-accent-red hover:bg-accent-red/20"
                 : "bg-accent-violet/10 text-accent-violet hover:bg-accent-violet/20"
@@ -126,11 +127,12 @@ export function DailyChecklist({
                   <div className="flex flex-wrap gap-2">
                     {EMOJI_OPTIONS.map((e) => (
                       <button
+                        type="button"
                         key={e}
                         onClick={() => setSelectedEmoji(e)}
                         aria-label={"Choose emoji " + e}
                         className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-xl text-lg transition-colors",
+                          "flex h-9 w-9 items-center justify-center rounded-xl text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary",
                           selectedEmoji === e
                             ? "bg-accent-violet/20 ring-2 ring-accent-violet scale-110"
                             : "bg-bg-surface hover:bg-bg-card-hover"
@@ -158,9 +160,10 @@ export function DailyChecklist({
                     maxLength={40}
                   />
                   <button
+                    type="button"
                     onClick={handleAddTask}
                     disabled={!newTaskName.trim()}
-                    className="rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 transition-opacity hover:opacity-90"
+                    className="rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                   >
                     Add
                   </button>
@@ -193,8 +196,9 @@ export function DailyChecklist({
                   />
                 </div>
                 <button
+                  type="button"
                   onClick={() => onRemoveCustomTask(task.id)}
-                  className="flex-shrink-0 rounded-lg p-2 text-text-muted transition-colors hover:bg-accent-red/10 hover:text-accent-red"
+                  className="flex-shrink-0 rounded-lg p-2 text-text-muted transition-colors hover:bg-accent-red/10 hover:text-accent-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                   aria-label={`Remove ${task.name}`}
                 >
                   <svg

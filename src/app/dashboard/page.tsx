@@ -140,7 +140,7 @@ export default function DashboardPage() {
               void handleSignOut();
             }}
             disabled={signingOut}
-            className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-secondary hover:bg-bg-card-hover disabled:opacity-60"
+            className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-secondary hover:bg-bg-card-hover disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
           >
             {signingOut ? "Signing out…" : "Sign out"}
           </button>
@@ -260,7 +260,7 @@ export default function DashboardPage() {
                   void handleCreateGroup();
                 }}
                 disabled={!groupName.trim() || creatingGroup}
-                className="w-full rounded-lg bg-gradient-to-r from-accent-violet to-accent-pink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className="w-full rounded-lg bg-gradient-to-r from-accent-violet to-accent-pink px-3 py-2 text-sm font-semibold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
               >
                 {creatingGroup ? "Creating…" : "Create Squad"}
               </button>
@@ -288,7 +288,7 @@ export default function DashboardPage() {
                   void handleJoinGroup();
                 }}
                 disabled={!inviteCode.trim() || joiningGroup}
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm font-semibold text-text-secondary hover:bg-bg-card-hover disabled:opacity-60"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm font-semibold text-text-secondary hover:bg-bg-card-hover disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
               >
                 {joiningGroup ? "Joining…" : "Join Squad"}
               </button>

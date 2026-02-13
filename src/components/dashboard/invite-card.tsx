@@ -83,7 +83,7 @@ export function InviteCard({ inviteCode, groupName }: InviteCardProps) {
           </p>
           <button
             onClick={handleCopy}
-            className="flex-shrink-0 rounded-lg bg-bg-surface px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-bg-card-hover transition-colors"
+            className="flex-shrink-0 rounded-lg bg-bg-surface px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
           >
             <AnimatePresence mode="wait">
               {copied ? (
@@ -139,7 +139,7 @@ export function InviteCard({ inviteCode, groupName }: InviteCardProps) {
         {/* Share button */}
         <button
           onClick={handleShare}
-          className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
         >
           <svg aria-hidden="true" focusable="false"
             width="16"
