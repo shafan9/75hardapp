@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -102,7 +103,7 @@ export function Rankings({ members }: RankingsProps) {
               )}
             >
               {profile.avatar_url ? (
-                <img
+                <Image
                   src={profile.avatar_url}
                   alt={profile.display_name || "User"}
                   width={40}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { DEFAULT_TASKS, REACTION_EMOJIS } from "@/lib/constants";
 import { TaskCompletion, Profile, FeedReaction } from "@/lib/types";
@@ -60,7 +61,7 @@ export function FeedCard({
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-violet to-accent-pink text-sm font-bold text-white">
           {profile.avatar_url ? (
-            <img
+            <Image
               src={profile.avatar_url}
               alt={profile.display_name || "User"}
               width={40}

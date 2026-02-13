@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -106,7 +106,7 @@ export default function JoinGroupPage({
     };
   }, [supabase]);
 
-  async function handleJoin() {
+  const handleJoin = useCallback(async () => {
     if (!groupInfo || joining) return;
 
     setJoining(true);
@@ -139,7 +139,12 @@ export default function JoinGroupPage({
       toast.error(message);
       setJoining(false);
     }
-  }
+  }, [groupInfo, joining, router, toast, timezone]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !groupInfo || joined || joining) return;
+    void handleJoin();
+  }, [groupInfo, handleJoin, isLoggedIn, joined, joining]);
 
   if (loadingPreview || isLoggedIn === null) {
     return (

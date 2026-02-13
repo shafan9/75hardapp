@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { MemberDayStatus } from "@/lib/types";
@@ -63,7 +64,7 @@ export function GroupGrid({ members, totalRequired }: GroupGridProps) {
               <div className="mb-3 flex items-center gap-2">
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-violet to-accent-pink text-xs font-bold text-white">
                   {profile.avatar_url ? (
-                    <img
+                    <Image
                       src={profile.avatar_url}
                       alt={profile.display_name || "User"}
                       width={32}

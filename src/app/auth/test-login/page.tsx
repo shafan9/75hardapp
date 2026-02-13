@@ -9,7 +9,7 @@ export default function TestLoginPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
-  const e2eEnabled = process.env.NEXT_PUBLIC_E2E_TEST_MODE === "true";
+  const e2eEnabled = process.env.NEXT_PUBLIC_E2E_TEST_MODE === "true" && process.env.NODE_ENV !== "production";
 
   // Hooks must be unconditional (even when the page is disabled).
   const [hydrated, setHydrated] = useState(false);

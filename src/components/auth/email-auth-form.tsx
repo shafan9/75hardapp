@@ -15,6 +15,14 @@ interface EmailAuthFormProps {
   inviteCode?: string;
 }
 
+function formatAuthError(message: string) {
+  if (!message) return "Something went wrong.";
+  if (/rate\s*limit/i.test(message)) {
+    return "Too many attempts right now. Wait a few minutes and try again.";
+  }
+  return message;
+}
+
 export function EmailAuthForm({
   nextPath = "/dashboard",
   title = "Sign in",
@@ -62,7 +70,7 @@ export function EmailAuthForm({
       });
 
       if (signInError) {
-        setError(signInError.message);
+        setError(formatAuthError(signInError.message));
         setLoading(false);
         return;
       }
@@ -96,7 +104,7 @@ export function EmailAuthForm({
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
       if (!response.ok) {
-        setError(payload.error || "Could not create account.");
+        setError(formatAuthError(payload.error || "Could not create account."));
         setLoading(false);
         return;
       }
@@ -107,7 +115,7 @@ export function EmailAuthForm({
       });
 
       if (signInError) {
-        setError(signInError.message);
+        setError(formatAuthError(signInError.message));
         setLoading(false);
         return;
       }
@@ -130,7 +138,7 @@ export function EmailAuthForm({
     });
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(formatAuthError(signUpError.message));
       setLoading(false);
       return;
     }
@@ -225,14 +233,16 @@ export function EmailAuthForm({
       <motion.button
         type="submit"
         disabled={loading}
-        className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+        className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
         whileTap={{ scale: 0.98 }}
       >
         {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
       </motion.button>
 
-      {error && <p className="text-sm text-accent-red">{error}</p>}
-      {message && <p className="text-sm text-accent-emerald">{message}</p>}
+      <div aria-live="polite">
+        {error && <p className="text-sm text-accent-red">{error}</p>}
+        {message && <p className="text-sm text-accent-emerald">{message}</p>}
+      </div>
 
       {allowSignup && (
         <button
@@ -242,7 +252,7 @@ export function EmailAuthForm({
             setError(null);
             setMessage(null);
           }}
-          className="text-sm text-text-secondary hover:text-text-primary"
+          className="text-sm text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
         >
           {mode === "signin"
             ? "Need an account? Create one"

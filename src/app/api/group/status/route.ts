@@ -68,7 +68,7 @@ async function getSquadTimezone(
   }
 
   const ownerId = (group as { created_by?: string | null }).created_by;
-  if (!ownerId) return fallbackTimezone;
+  if (!ownerId) return "UTC";
 
   const { data: settings, error: settingsError } = await db
     .from("user_settings")
@@ -76,20 +76,28 @@ async function getSquadTimezone(
     .eq("user_id", ownerId)
     .maybeSingle();
 
-  if (!settingsError) {
-    const rawTz = (settings as { timezone?: string | null })?.timezone ?? null;
-    if (isValidTimezone(rawTz)) return rawTz;
+  const rawTz = !settingsError ? (settings as { timezone?: string | null })?.timezone ?? null : null;
+
+  // If the owner has explicitly set a timezone (not the default placeholder), trust it.
+  if (isValidTimezone(rawTz) && rawTz !== "UTC") {
+    return rawTz;
   }
 
-  if (ownerId === requesterId && isValidTimezone(fallbackTimezone)) {
+  // Heal older squads where the owner's timezone defaulted to UTC because the app didn't capture it.
+  if (ownerId === requesterId && isValidTimezone(fallbackTimezone) && fallbackTimezone !== "UTC") {
     await db
       .from("user_settings")
       .upsert({ user_id: ownerId, timezone: fallbackTimezone }, { onConflict: "user_id" });
+
     return fallbackTimezone;
   }
 
-  return fallbackTimezone;
+  // Fall back to the stored owner timezone when present (even if it's UTC) so all members share a boundary.
+  if (isValidTimezone(rawTz)) return rawTz;
+
+  return "UTC";
 }
+
 
 async function getSquadStartDate(
   db: ReturnType<typeof getDbClient>,

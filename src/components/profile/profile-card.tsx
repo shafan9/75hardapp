@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,7 @@ export function ProfileCard({
           {/* Avatar */}
           <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-accent-violet to-accent-pink text-3xl font-bold text-white">
             {profile.avatar_url ? (
-              <img
+              <Image
                 src={profile.avatar_url}
                 alt={profile.display_name || "User"}
                 width={96}
@@ -107,7 +108,9 @@ export function ProfileCard({
                   className="rounded-lg border border-accent-violet bg-bg-primary px-3 py-1.5 text-center text-lg font-bold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
                 />
                 <button
+                  type="button"
                   onClick={handleSaveName}
+                  aria-label="Save name"
                   className="rounded-lg bg-accent-emerald/20 p-1.5 text-accent-emerald hover:bg-accent-emerald/30 transition-colors"
                 >
                   <svg
@@ -124,6 +127,8 @@ export function ProfileCard({
                   </svg>
                 </button>
                 <button
+                  type="button"
+                  aria-label="Cancel edit"
                   onClick={() => {
                     setEditName(profile.display_name || "");
                     setIsEditing(false);

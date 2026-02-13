@@ -69,7 +69,8 @@ async function ensureProfile(
 }
 
 async function ensureUserTimezone(db: ReturnType<typeof getDbClient>, userId: string, timezone: string) {
-  if (!isValidTimezone(timezone)) return;
+  // Avoid overwriting an existing timezone with the generic fallback.
+  if (!isValidTimezone(timezone) || timezone === "UTC") return;
 
   const { error } = await db
     .from("user_settings")

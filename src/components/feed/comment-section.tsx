@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { FeedComment } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
@@ -50,7 +51,7 @@ export function CommentSection({
                   {/* Avatar */}
                   <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-blue to-accent-violet text-[10px] font-bold text-white">
                     {profile?.avatar_url ? (
-                      <img
+                      <Image
                         src={profile.avatar_url}
                         alt={profile.display_name || "User"}
                         width={28}
