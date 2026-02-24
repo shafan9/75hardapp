@@ -107,15 +107,32 @@ export function useAuth() {
     const getUser = async () => {
       try {
         const {
-          data: { user },
+          data: { session },
+        } = await withTimeout(supabase.auth.getSession(), "Loading local session");
+
+        if (!isMounted) return;
+
+        const hydratedUser = session?.user ?? null;
+        setUser(hydratedUser);
+
+        if (hydratedUser) {
+          void fetchProfile(hydratedUser.id);
+        } else {
+          setProfile(null);
+        }
+
+        const {
+          data: { user: verifiedUser },
         } = await withTimeout(supabase.auth.getUser(), "Loading user session");
 
         if (!isMounted) return;
 
-        setUser(user);
+        setUser(verifiedUser ?? null);
 
-        if (user) {
-          await fetchProfile(user.id);
+        if (verifiedUser) {
+          await fetchProfile(verifiedUser.id);
+        } else {
+          setProfile(null);
         }
       } catch (error) {
         console.error("Error fetching user:", error);
@@ -175,27 +192,38 @@ export function useAuth() {
   };
 
   const signUpWithPassword = async (email: string, password: string, displayName?: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: displayName,
-        },
-      },
+    // Use the server-side signup route so account creation can stay invite-aware
+    // and avoid relying on Supabase's shared email sender in development.
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = password.trim();
+
+    const response = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: normalizedEmail,
+        password: normalizedPassword,
+        displayName: displayName?.trim() || undefined,
+      }),
     });
 
-    if (error) {
-      toast.error(error.message || "Could not create account.");
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) {
+      toast.error(payload.error || "Could not create account.");
       return { success: false, requiresConfirmation: false };
     }
 
-    const requiresConfirmation = !data.session;
-    if (requiresConfirmation) {
-      toast.success("Account created. Check your email to confirm your account.");
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: normalizedPassword,
+    });
+
+    if (signInError) {
+      toast.error(signInError.message || "Could not sign in.");
+      return { success: false, requiresConfirmation: false };
     }
 
-    return { success: true, requiresConfirmation };
+    return { success: true, requiresConfirmation: false };
   };
 
   const signOut = async () => {

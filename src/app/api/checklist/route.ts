@@ -38,6 +38,33 @@ function getDayNumber(startDate: string | null | undefined, today: string) {
   return clampDayNumber(Math.max(delta + 1, 1));
 }
 
+function isIsoDateString(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function resolveEditableDate(
+  requestedDate: string | undefined,
+  squadStartDate: string | null,
+  today: string
+) {
+  const trimmed = (requestedDate ?? "").trim();
+  if (!trimmed) return today;
+
+  if (!isIsoDateString(trimmed)) {
+    throw new Error("targetDate must use YYYY-MM-DD format.");
+  }
+
+  if (trimmed > today) {
+    throw new Error("You can only edit today or past days.");
+  }
+
+  if (squadStartDate && trimmed < squadStartDate) {
+    throw new Error("You cannot edit days before your squad started.");
+  }
+
+  return trimmed;
+}
+
 function getActiveStreak(progress: unknown, today: string) {
   if (!progress) return 0;
 
@@ -103,15 +130,50 @@ async function ensureGroupAccess(
     throw new Error(`Could not validate group ownership: ${ownedGroupError.message}`);
   }
 
-  if (!ownedGroup) {
+  if (ownedGroup) {
+    const { error: insertOwnerMembershipError } = await db.from("group_members").insert({
+      group_id: groupId,
+      user_id: userId,
+      role: "admin",
+    });
+
+    if (
+      insertOwnerMembershipError &&
+      (insertOwnerMembershipError as { code?: string }).code !== "23505"
+    ) {
+      throw new Error(`Could not repair owner membership: ${insertOwnerMembershipError.message}`);
+    }
+
+    return;
+  }
+
+  const { data: legacyProgress, error: legacyProgressError } = await db
+    .from("challenge_progress")
+    .select("id")
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (legacyProgressError) {
+    throw new Error(`Could not validate challenge progress access: ${legacyProgressError.message}`);
+  }
+
+  if (!legacyProgress) {
     throw new Error("You are not in this squad.");
   }
 
-  await db.from("group_members").insert({
+  const { error: insertRecoveredMembershipError } = await db.from("group_members").insert({
     group_id: groupId,
     user_id: userId,
-    role: "admin",
+    role: "member",
   });
+
+  if (
+    insertRecoveredMembershipError &&
+    (insertRecoveredMembershipError as { code?: string }).code !== "23505"
+  ) {
+    throw new Error(`Could not repair group membership: ${insertRecoveredMembershipError.message}`);
+  }
 }
 
 async function getSquadTimezone(
@@ -459,6 +521,7 @@ export async function POST(request: Request) {
       name?: string;
       emoji?: string;
       id?: string;
+      targetDate?: string;
     };
 
     const fallbackTimezone = getTimezoneFromRequest(request);
@@ -473,6 +536,8 @@ export async function POST(request: Request) {
     const squadStartDate = groupId
       ? await getSquadStartDate(db, groupId, squadTimezone, today)
       : null;
+
+    const actionDate = resolveEditableDate(body.targetDate, squadStartDate, today);
 
     if (groupId) {
       try {
@@ -541,14 +606,14 @@ export async function POST(request: Request) {
         .eq("user_id", user.id)
         .eq("group_id", body.groupId)
         .eq("task_key", body.taskKey)
-        .eq("date", today);
+        .eq("date", actionDate);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
       const state = await getChecklistState(db, user.id, body.groupId, today, squadStartDate);
-      return NextResponse.json(state, { status: 200 });
+      return NextResponse.json({ ...state, editedDate: actionDate }, { status: 200 });
     }
 
     if (body.action === "toggleTask") {
@@ -568,7 +633,7 @@ export async function POST(request: Request) {
         .eq("user_id", user.id)
         .eq("group_id", body.groupId)
         .eq("task_key", body.taskKey)
-        .eq("date", today)
+        .eq("date", actionDate)
         .maybeSingle();
 
       if (existingError) {
@@ -589,7 +654,7 @@ export async function POST(request: Request) {
           user_id: user.id,
           group_id: body.groupId,
           task_key: body.taskKey,
-          date: today,
+          date: actionDate,
         });
 
         if (insertError) {
@@ -604,7 +669,7 @@ export async function POST(request: Request) {
         .select("task_key")
         .eq("user_id", user.id)
         .eq("group_id", body.groupId)
-        .eq("date", today);
+        .eq("date", actionDate);
 
       if (completionError) {
         return NextResponse.json({ error: completionError.message }, { status: 500 });
@@ -671,6 +736,7 @@ export async function POST(request: Request) {
           isAllDone: DEFAULT_TASK_KEYS.every((key) => todayCompleted.includes(key)),
           squadDate: today,
           squadStartDate,
+          editedDate: actionDate,
         },
         { status: 200 }
       );

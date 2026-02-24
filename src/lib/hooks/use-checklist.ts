@@ -14,7 +14,12 @@ interface ChecklistStateResponse {
   error?: string;
 }
 
-export function useChecklist(groupId: string | undefined) {
+interface UseChecklistOptions {
+  enabled?: boolean;
+}
+
+export function useChecklist(groupId: string | undefined, options: UseChecklistOptions = {}) {
+  const enabled = options.enabled ?? true;
   const [todayCompleted, setTodayCompleted] = useState<string[]>([]);
   const [customTasks, setCustomTasks] = useState<CustomTask[]>([]);
   const [progress, setProgress] = useState<ChallengeProgress | null>(null);
@@ -42,6 +47,15 @@ export function useChecklist(groupId: string | undefined) {
   }, []);
 
   const loadState = useCallback(async () => {
+    if (!enabled) {
+      setTodayCompleted([]);
+      setCustomTasks([]);
+      setProgress(null);
+      setCurrentDay(0);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -86,11 +100,16 @@ export function useChecklist(groupId: string | undefined) {
     } finally {
       setLoading(false);
     }
-  }, [applyState, groupId, timezone, toast]);
+  }, [applyState, enabled, groupId, timezone, toast]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     void loadState();
-  }, [loadState]);
+  }, [enabled, loadState]);
 
   useEffect(() => {
     authRetryRef.current = false;

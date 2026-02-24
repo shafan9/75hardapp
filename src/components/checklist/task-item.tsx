@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { EmojiBurst } from "@/components/ui/emoji-burst";
@@ -94,6 +94,13 @@ export function TaskItem({
   const [showBurst, setShowBurst] = useState(false);
   const [noteValue, setNoteValue] = useState(note || "");
   const [showNoteInput, setShowNoteInput] = useState(!!note);
+
+  useEffect(() => {
+    setNoteValue(note || "");
+    if (note) {
+      setShowNoteInput(true);
+    }
+  }, [note]);
 
   const handleToggle = useCallback(() => {
     if (!isCompleted) {

@@ -30,13 +30,27 @@ interface ProfileRow {
   created_at: string;
 }
 
-async function getAuthenticatedUser() {
+async function getAuthenticatedUser(request?: Request) {
   const sessionClient = await createClient();
   const {
     data: { user },
   } = await sessionClient.auth.getUser();
 
-  return { user, sessionClient };
+  if (user) {
+    return { user, sessionClient };
+  }
+
+  const authHeader = request?.headers.get("authorization") ?? "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  const accessToken = bearerMatch?.[1]?.trim();
+
+  if (accessToken) {
+    const admin = createAdminClient();
+    const { data } = await admin.auth.getUser(accessToken);
+    return { user: data.user ?? null, sessionClient };
+  }
+
+  return { user: null, sessionClient };
 }
 
 function getDbClient() {
@@ -100,6 +114,39 @@ async function resolveMembershipGroupId(db: ReturnType<typeof getDbClient>, user
     return directMembershipGroupId;
   }
 
+  const { data: progressRows, error: progressError } = await db
+    .from("challenge_progress")
+    .select("group_id, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (progressError) {
+    throw new Error(`Could not load challenge progress membership fallback: ${progressError.message}`);
+  }
+
+  const progressGroupId = (progressRows?.[0] as { group_id?: string } | undefined)?.group_id ?? null;
+  if (progressGroupId) {
+    const { data: ownerGroup } = await db
+      .from("groups")
+      .select("id")
+      .eq("id", progressGroupId)
+      .eq("created_by", userId)
+      .maybeSingle();
+
+    const { error: repairMembershipError } = await db.from("group_members").insert({
+      group_id: progressGroupId,
+      user_id: userId,
+      role: ownerGroup ? "admin" : "member",
+    });
+
+    if (repairMembershipError && repairMembershipError.code !== "23505") {
+      console.warn("Could not repair group_members row from challenge_progress:", repairMembershipError.message);
+    }
+
+    return progressGroupId;
+  }
+
   const { data: createdGroup, error: createdGroupError } = await db
     .from("groups")
     .select("id")
@@ -116,11 +163,15 @@ async function resolveMembershipGroupId(db: ReturnType<typeof getDbClient>, user
     return null;
   }
 
-  await db.from("group_members").insert({
+  const { error: ownerMembershipInsertError } = await db.from("group_members").insert({
     group_id: fallbackGroupId,
     user_id: userId,
     role: "admin",
   });
+
+  if (ownerMembershipInsertError && ownerMembershipInsertError.code !== "23505") {
+    console.warn("Could not repair owner membership row:", ownerMembershipInsertError.message);
+  }
 
   return fallbackGroupId;
 }
@@ -330,7 +381,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { user } = await getAuthenticatedUser();
+    const { user } = await getAuthenticatedUser(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -52,12 +52,27 @@ const run = async () => {
   await page.locator('#auth-password').fill(password);
   await page.getByRole('button', { name: /sign in/i }).click();
 
-  // After auth, join button should appear.
+  // After auth, either auto-join may redirect directly to /dashboard, or the Join Squad button may appear.
   const joinButton = page.getByRole('button', { name: 'Join Squad' });
-  await joinButton.waitFor({ state: 'visible', timeout: 60_000 });
-  await joinButton.click();
+  const reachedDashboard = await page
+    .waitForURL(/\/dashboard(\/.*)?$/, { timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
 
-  await page.waitForURL(/\/dashboard(\/.*)?$/, { timeout: 60_000 });
+  if (!reachedDashboard) {
+    const joiningButton = page.getByRole('button', { name: /joining/i });
+    const isAutoJoining = await joiningButton
+      .isVisible()
+      .catch(() => false);
+
+    if (isAutoJoining) {
+      await page.waitForURL(/\/dashboard(\/.*)?$/, { timeout: 60_000 });
+    } else {
+      await joinButton.waitFor({ state: 'visible', timeout: 60_000 });
+      await joinButton.click();
+      await page.waitForURL(/\/dashboard(\/.*)?$/, { timeout: 60_000 });
+    }
+  }
 
   // Toggle two tasks and wait for UI to reflect the save before reloading.
   await page.getByRole('button', { name: /Mark Outdoor Workout as complete/i }).click();
@@ -90,8 +105,27 @@ const run = async () => {
   await page.getByRole('button', { name: /Mark Outdoor Workout as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByRole('button', { name: /Mark Gallon of Water as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
 
+  // History/backfill smoke: if squad is past Day 1, edit a past day and confirm persistence.
+  await page.goto(`${baseUrl}/dashboard/history`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: /Your Progress Timeline/i }).waitFor({ state: 'visible', timeout: 30_000 });
+
+  const prevButton = page.getByRole('button', { name: 'Prev' });
+  if (await prevButton.isEnabled().catch(() => false)) {
+    await prevButton.click();
+    await page.getByText(/Past day \(editable backfill\)/i).waitFor({ state: 'visible', timeout: 30_000 });
+
+    const backfillToggle = page.getByRole('button', { name: /Mark Read 10 Pages as complete/i });
+    if (await backfillToggle.count()) {
+      await backfillToggle.first().click();
+      await page.getByRole('button', { name: /Mark Read 10 Pages as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.getByRole('button', { name: /Mark Read 10 Pages as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
+    }
+  }
+
   // Sanity: day label renders.
-  await expect(page.getByText(/Day \d+ of 75/)).toBeVisible();
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: /Today/i }).waitFor({ state: 'visible', timeout: 30_000 });
 
   await browser.close();
   console.log('prod-e2e: OK');

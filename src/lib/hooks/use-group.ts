@@ -11,7 +11,12 @@ interface GroupStateResponse {
   error?: string;
 }
 
-export function useGroup() {
+interface UseGroupOptions {
+  enabled?: boolean;
+}
+
+export function useGroup(options: UseGroupOptions = {}) {
+  const enabled = options.enabled ?? true;
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +36,11 @@ export function useGroup() {
   }, []);
 
   const fetchGroup = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/group", {
         method: "GET",
@@ -69,9 +79,16 @@ export function useGroup() {
     } finally {
       setLoading(false);
     }
-  }, [applyState, toast]);
+  }, [applyState, enabled, toast]);
 
   useEffect(() => {
+    if (!enabled) {
+      setGroup(null);
+      setMembers([]);
+      setLoading(false);
+      return;
+    }
+
     void fetchGroup();
 
     const onVisibilityChange = () => {
@@ -84,9 +101,11 @@ export function useGroup() {
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [fetchGroup]);
+  }, [enabled, fetchGroup]);
 
   useEffect(() => {
+    if (!enabled) return;
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -101,7 +120,7 @@ export function useGroup() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchGroup, supabase]);
+  }, [enabled, fetchGroup, supabase]);
 
   const createGroup = async (name: string) => {
     try {

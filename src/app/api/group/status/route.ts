@@ -154,7 +154,37 @@ export async function GET(request: Request) {
     }
 
     if (!membership) {
-      return NextResponse.json({ error: "Not a member of this squad." }, { status: 403 });
+      const { data: legacyProgress, error: legacyProgressError } = await db
+        .from("challenge_progress")
+        .select("id")
+        .eq("group_id", groupId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (legacyProgressError) {
+        return NextResponse.json({ error: legacyProgressError.message }, { status: 500 });
+      }
+
+      if (!legacyProgress) {
+        return NextResponse.json({ error: "Not a member of this squad." }, { status: 403 });
+      }
+
+      const { data: ownerGroup } = await db
+        .from("groups")
+        .select("id")
+        .eq("id", groupId)
+        .eq("created_by", user.id)
+        .maybeSingle();
+
+      const { error: repairMembershipError } = await db.from("group_members").insert({
+        group_id: groupId,
+        user_id: user.id,
+        role: ownerGroup ? "admin" : "member",
+      });
+
+      if (repairMembershipError && repairMembershipError.code !== "23505") {
+        return NextResponse.json({ error: repairMembershipError.message }, { status: 500 });
+      }
     }
 
     const { data: membersData, error: membersError } = await db

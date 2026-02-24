@@ -8,7 +8,12 @@ interface MemberStatusResponse {
   error?: string;
 }
 
-export function useMemberStatus(groupId: string | undefined) {
+interface UseMemberStatusOptions {
+  enabled?: boolean;
+}
+
+export function useMemberStatus(groupId: string | undefined, options: UseMemberStatusOptions = {}) {
+  const enabled = options.enabled ?? true;
   const [memberStatuses, setMemberStatuses] = useState<MemberDayStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -18,7 +23,7 @@ export function useMemberStatus(groupId: string | undefined) {
   );
 
   const fetchStatuses = useCallback(async () => {
-    if (!groupId) {
+    if (!enabled || !groupId) {
       setMemberStatuses([]);
       setLoading(false);
       return;
@@ -46,14 +51,20 @@ export function useMemberStatus(groupId: string | undefined) {
     } finally {
       setLoading(false);
     }
-  }, [groupId, timezone]);
+  }, [enabled, groupId, timezone]);
 
   useEffect(() => {
+    if (!enabled) {
+      setMemberStatuses([]);
+      setLoading(false);
+      return;
+    }
+
     void fetchStatuses();
-  }, [fetchStatuses]);
+  }, [enabled, fetchStatuses]);
 
   useEffect(() => {
-    if (!groupId) return;
+    if (!enabled || !groupId) return;
 
     const id = window.setInterval(() => {
       void fetchStatuses();
@@ -62,7 +73,7 @@ export function useMemberStatus(groupId: string | undefined) {
     return () => {
       window.clearInterval(id);
     };
-  }, [fetchStatuses, groupId]);
+  }, [enabled, fetchStatuses, groupId]);
 
   return {
     memberStatuses,
