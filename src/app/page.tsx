@@ -7,7 +7,10 @@ import { EmailAuthForm } from "@/components/auth/email-auth-form";
 
 export default function LandingPage() {
   return (
-    <div className="relative min-h-dvh overflow-hidden px-4 py-6 sm:px-6 sm:py-10">
+    <div
+      className="relative min-h-dvh overflow-hidden px-4 py-6 sm:px-6 sm:py-10"
+      style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)" }}
+    >
       <div className="pointer-events-none fixed inset-0" aria-hidden="true">
         <div className="absolute left-[-120px] top-[-120px] h-80 w-80 rounded-full bg-accent-violet/20 blur-[120px]" />
         <div className="absolute bottom-[-140px] right-[-100px] h-96 w-96 rounded-full bg-accent-pink/15 blur-[140px]" />

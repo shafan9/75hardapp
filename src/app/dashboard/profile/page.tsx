@@ -38,8 +38,8 @@ export default function ProfilePage() {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
   const { user, profile, loading, updateProfile, signOut } = useAuth();
-  const { group } = useGroup();
-  const { customTasks, addCustomTask, removeCustomTask, currentDay } = useChecklist(group?.id);
+  const { group } = useGroup({ enabled: !loading && !!user });
+  const { customTasks, addCustomTask, removeCustomTask, currentDay } = useChecklist(group?.id, { enabled: !loading && !!user });
   const { earned } = useAchievements(user?.id, group?.id);
 
   const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -59,6 +59,10 @@ export default function ProfilePage() {
   const [newTaskName, setNewTaskName] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [sendingTestChannel, setSendingTestChannel] = useState<NotificationChannel | null>(null);
   const [totalCompletions, setTotalCompletions] = useState(0);
@@ -302,6 +306,42 @@ export default function ProfilePage() {
     setShowAddTask(false);
   }
 
+  async function changePassword() {
+    const nextPassword = newPassword.trim();
+    const nextConfirm = confirmNewPassword.trim();
+
+    if (!nextPassword || !nextConfirm) {
+      setPasswordError("Enter your new password twice.");
+      return;
+    }
+
+    if (nextPassword.length < 8) {
+      setPasswordError("Use at least 8 characters for your password.");
+      return;
+    }
+
+    if (nextPassword !== nextConfirm) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+
+    setChangingPassword(true);
+    setPasswordError(null);
+
+    const { error } = await supabase.auth.updateUser({ password: nextPassword });
+
+    setChangingPassword(false);
+
+    if (error) {
+      setPasswordError(error.message || "Could not update password.");
+      return;
+    }
+
+    setNewPassword("");
+    setConfirmNewPassword("");
+    toast.success("Password updated.");
+  }
+
   async function handleSignOut() {
     setSigningOut(true);
     await signOut();
@@ -382,6 +422,65 @@ export default function ProfilePage() {
         )}
 
         <p className="text-xs text-text-muted">{user.email}</p>
+      </motion.div>
+
+      <motion.div
+        className="glass-card p-5"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08 }}
+      >
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Login & Security
+        </p>
+        <p className="mb-3 text-xs text-text-secondary">
+          If you originally used Google sign-in, set a password here so you can sign in with email + password next time.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1">
+            <span className="text-xs font-medium text-text-secondary">New password</span>
+            <input
+              type="password"
+              name="new_password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+              placeholder="At least 8 characters"
+            />
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-xs font-medium text-text-secondary">Confirm password</span>
+            <input
+              type="password"
+              name="confirm_new_password"
+              autoComplete="new-password"
+              value={confirmNewPassword}
+              onChange={(event) => setConfirmNewPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void changePassword();
+                }
+              }}
+              className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+              placeholder="Repeat password"
+            />
+          </label>
+        </div>
+
+        {passwordError && <p className="mt-3 text-sm text-accent-red">{passwordError}</p>}
+
+        <button
+          onClick={() => {
+            void changePassword();
+          }}
+          disabled={changingPassword}
+          className="mt-3 rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-3 py-2 text-xs font-semibold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+        >
+          {changingPassword ? "Updating…" : "Set / Change Password"}
+        </button>
       </motion.div>
 
       <motion.div

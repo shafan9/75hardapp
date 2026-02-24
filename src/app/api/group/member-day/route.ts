@@ -132,7 +132,37 @@ export async function GET(request: Request) {
     }
 
     if (!requesterMember) {
-      return NextResponse.json({ error: "Not a member of this squad." }, { status: 403 });
+      const { data: requesterLegacyProgress, error: requesterLegacyProgressError } = await db
+        .from("challenge_progress")
+        .select("id")
+        .eq("group_id", groupId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (requesterLegacyProgressError) {
+        return NextResponse.json({ error: requesterLegacyProgressError.message }, { status: 500 });
+      }
+
+      if (!requesterLegacyProgress) {
+        return NextResponse.json({ error: "Not a member of this squad." }, { status: 403 });
+      }
+
+      const { data: requesterOwnedGroup } = await db
+        .from("groups")
+        .select("id")
+        .eq("id", groupId)
+        .eq("created_by", user.id)
+        .maybeSingle();
+
+      const { error: requesterRepairError } = await db.from("group_members").insert({
+        group_id: groupId,
+        user_id: user.id,
+        role: requesterOwnedGroup ? "admin" : "member",
+      });
+
+      if (requesterRepairError && requesterRepairError.code !== "23505") {
+        return NextResponse.json({ error: requesterRepairError.message }, { status: 500 });
+      }
     }
 
     const { data: targetMember, error: targetError } = await db
@@ -147,7 +177,37 @@ export async function GET(request: Request) {
     }
 
     if (!targetMember) {
-      return NextResponse.json({ error: "Member not found in this squad." }, { status: 404 });
+      const { data: targetLegacyProgress, error: targetLegacyProgressError } = await db
+        .from("challenge_progress")
+        .select("id")
+        .eq("group_id", groupId)
+        .eq("user_id", memberId)
+        .maybeSingle();
+
+      if (targetLegacyProgressError) {
+        return NextResponse.json({ error: targetLegacyProgressError.message }, { status: 500 });
+      }
+
+      if (!targetLegacyProgress) {
+        return NextResponse.json({ error: "Member not found in this squad." }, { status: 404 });
+      }
+
+      const { data: targetOwnedGroup } = await db
+        .from("groups")
+        .select("id")
+        .eq("id", groupId)
+        .eq("created_by", memberId)
+        .maybeSingle();
+
+      const { error: targetRepairError } = await db.from("group_members").insert({
+        group_id: groupId,
+        user_id: memberId,
+        role: targetOwnedGroup ? "admin" : "member",
+      });
+
+      if (targetRepairError && targetRepairError.code !== "23505") {
+        return NextResponse.json({ error: targetRepairError.message }, { status: 500 });
+      }
     }
 
     const fallbackTimezone = getTimezoneFromRequest(request);
@@ -157,7 +217,7 @@ export async function GET(request: Request) {
 
     const parsedDay = dayParam ? Number(dayParam) : Number.NaN;
     const currentSquadDay = getCurrentSquadDayNumber(squadStartDate, squadToday);
-    const day = Number.isFinite(parsedDay) ? clampDayNumber(parsedDay) : currentSquadDay;
+    const day = Number.isFinite(parsedDay) ? Math.min(clampDayNumber(parsedDay), currentSquadDay) : currentSquadDay;
 
     const date = addDays(squadStartDate, day - 1);
 

@@ -40,8 +40,57 @@ export function EmailAuthForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  function redirectAfterAuth() {
+    if (typeof window !== "undefined" && nextPath.startsWith("/join/")) {
+      window.location.assign(nextPath);
+      return;
+    }
+
+    router.replace(nextPath);
+    router.refresh();
+  }
+
+  async function waitForActiveSession(timeoutMs = 3000) {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) return true;
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+
+    return false;
+  }
+
+  async function handleForgotPassword() {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setError("Enter your email first.");
+      return;
+    }
+
+    setResetting(true);
+    setError(null);
+    setMessage(null);
+
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    });
+
+    setResetting(false);
+
+    if (resetError) {
+      setError(formatAuthError(resetError.message));
+      return;
+    }
+
+    setMessage("Password reset email sent. Open the link to set a new password.");
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,9 +124,9 @@ export function EmailAuthForm({
         return;
       }
 
+      await waitForActiveSession();
       toast.success("Signed in.");
-      router.push(nextPath);
-      router.refresh();
+      redirectAfterAuth();
       return;
     }
 
@@ -125,9 +174,9 @@ export function EmailAuthForm({
         return;
       }
 
+      await waitForActiveSession();
       toast.success("Account ready.");
-      router.push(nextPath);
-      router.refresh();
+      redirectAfterAuth();
       return;
     }
 
@@ -149,9 +198,9 @@ export function EmailAuthForm({
     }
 
     if (data.session) {
+      await waitForActiveSession();
       toast.success("Account created.");
-      router.push(nextPath);
-      router.refresh();
+      redirectAfterAuth();
       return;
     }
 
@@ -234,6 +283,26 @@ export function EmailAuthForm({
           required
         />
       </div>
+
+      {mode === "signin" && (
+        <div className="space-y-1">
+          <p className="text-[11px] text-text-muted">
+            We keep you signed in on this browser until you sign out.
+          </p>
+          <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              void handleForgotPassword();
+            }}
+            disabled={loading || resetting}
+            className="text-xs font-semibold text-text-muted transition-colors hover:text-text-secondary disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
+          >
+            {resetting ? "Sending reset…" : "Forgot password?"}
+          </button>
+          </div>
+        </div>
+      )}
 
       <motion.button
         type="submit"

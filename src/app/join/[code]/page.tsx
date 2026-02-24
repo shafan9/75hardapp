@@ -14,6 +14,12 @@ interface InviteGroupInfo {
   memberCount: number | null;
 }
 
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 async function lookupInviteGroup(code: string): Promise<InviteGroupInfo | null> {
   const response = await fetch(`/api/invite?code=${encodeURIComponent(code)}`, {
     method: "GET",
@@ -67,6 +73,24 @@ export default function JoinGroupPage({
   const [error, setError] = useState<string | null>(null);
 
   const autoJoinAttemptedRef = useRef(false);
+
+  async function waitForServerSessionReadiness() {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const response = await fetch("/api/group", {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+      }).catch(() => null);
+
+      if (response && response.ok) {
+        return true;
+      }
+
+      await delay(250 * (attempt + 1));
+    }
+
+    return false;
+  }
 
   useEffect(() => {
     async function loadInviteData() {
@@ -124,25 +148,59 @@ export default function JoinGroupPage({
     setError(null);
 
     try {
-      const response = await fetch("/api/group", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Timezone": timezone },
-        credentials: "same-origin",
-        body: JSON.stringify({ action: "join", inviteCode: groupInfo.inviteCode }),
-      });
+      let joinedGroupName = groupInfo.name;
 
-      const payload = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        group?: { name?: string };
-      };
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token ?? null;
 
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not join this squad.");
+        const response = await fetch("/api/group", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Timezone": timezone,
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({ action: "join", inviteCode: groupInfo.inviteCode }),
+        });
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          group?: { name?: string };
+        };
+
+        if (response.ok) {
+          joinedGroupName = payload.group?.name ?? groupInfo.name;
+          break;
+        }
+
+        const message = payload.error || "Could not join this squad.";
+        const unauthorized = response.status === 401 || /unauthorized/i.test(message);
+        const shouldRetry = unauthorized && attempt < 2;
+
+        if (!shouldRetry) {
+          throw new Error(message);
+        }
+
+        // Supabase auth cookies can lag slightly behind the client auth event on invite pages.
+        await delay(500 * (attempt + 1));
       }
 
       setJoined(true);
-      toast.success(`Joined ${payload.group?.name ?? groupInfo.name}.`);
-      setTimeout(() => router.push("/dashboard"), 900);
+      toast.success(`Joined ${joinedGroupName}.`);
+
+      void (async () => {
+        await waitForServerSessionReadiness();
+
+        if (typeof window !== "undefined") {
+          window.location.assign("/dashboard");
+          return;
+        }
+
+        router.replace("/dashboard");
+        router.refresh();
+      })();
     } catch (joinError) {
       console.error("Join group error:", joinError);
       const message = joinError instanceof Error ? joinError.message : "Could not join this squad.";
@@ -150,7 +208,7 @@ export default function JoinGroupPage({
       toast.error(message);
       setJoining(false);
     }
-  }, [groupInfo, joining, router, toast, timezone]);
+  }, [groupInfo, joining, router, supabase, toast, timezone]);
   useEffect(() => {
     if (!isLoggedIn || !groupInfo || joined) return;
     if (autoJoinAttemptedRef.current) return;
