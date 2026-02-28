@@ -1,12 +1,16 @@
 {
   "name": "75 Squad",
   "short_name": "75 Squad",
-  "description": "Crush 75 Hard Together with your squad",
-  "start_url": "/dashboard",
+  "id": "/",
+  "description": "Crush 75 Hard with your squad using one clear daily screen for checklist, progress, and accountability.",
+  "start_url": "/dashboard?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0B0F1A",
-  "theme_color": "#7C3AED",
+  "theme_color": "#0B0F1A",
   "orientation": "portrait",
+  "categories": ["health", "fitness", "lifestyle", "productivity"],
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -19,6 +23,26 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today",
+      "short_name": "Today",
+      "description": "Open today checklist",
+      "url": "/dashboard"
+    },
+    {
+      "name": "Squad",
+      "short_name": "Squad",
+      "description": "View squad status",
+      "url": "/dashboard/group"
+    },
+    {
+      "name": "Feed",
+      "short_name": "Feed",
+      "description": "Open squad feed",
+      "url": "/dashboard/feed"
     }
   ]
 }

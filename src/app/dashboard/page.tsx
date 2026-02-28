@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { DailyChecklist } from "@/components/checklist/daily-checklist";
 import { GroupGrid } from "@/components/dashboard/group-grid";
 import { InviteCard } from "@/components/dashboard/invite-card";
+import { DASHBOARD_TABS, DashboardTabBar } from "@/components/dashboard/dashboard-tab-bar";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { DEFAULT_TASK_KEYS, TOTAL_DAYS } from "@/lib/constants";
 import { useAuth } from "@/lib/hooks/use-auth";
@@ -19,13 +20,7 @@ import {
   getStreakMessage,
 } from "@/lib/utils";
 
-const DASHBOARD_TABS = [
-  { href: "/dashboard", label: "Today", icon: "◉" },
-  { href: "/dashboard/group", label: "Squad", icon: "◎" },
-  { href: "/dashboard/feed", label: "Feed", icon: "◌" },
-  { href: "/dashboard/history", label: "History", icon: "◍" },
-  { href: "/dashboard/profile", label: "Profile", icon: "◐" },
-] as const;
+
 
 export default function DashboardPage() {
   const { user, profile, loading: authLoading, signOut } = useAuth();
@@ -448,29 +443,7 @@ export default function DashboardPage() {
         </motion.section>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(6,8,14,0.72)] px-3 pt-2 backdrop-blur-3xl" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }} aria-label="Primary dashboard tabs">
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-5 gap-1">
-          {DASHBOARD_TABS.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`rounded-xl px-1 py-1.5 text-center transition-colors ${
-                tab.href === "/dashboard"
-                  ? "bg-white/[0.08] ring-1 ring-white/10"
-                  : "hover:bg-white/[0.04]"
-              }`}
-              aria-current={tab.href === "/dashboard" ? "page" : undefined}
-            >
-              <div className={`text-base leading-none ${tab.href === "/dashboard" ? "text-white" : "text-white/45"}`} aria-hidden="true">
-                {tab.icon}
-              </div>
-              <div className={`mt-1 text-[10px] ${tab.href === "/dashboard" ? "font-semibold text-white" : "text-white/45"}`}>
-                {tab.label}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </nav>
+      <DashboardTabBar activeHref="/dashboard" />
     </div>
   );
 }

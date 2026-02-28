@@ -114,17 +114,45 @@ const run = async () => {
     await prevButton.click();
     await page.getByText(/Past day \(editable backfill\)/i).waitFor({ state: 'visible', timeout: 30_000 });
 
-    const backfillToggle = page.getByRole('button', { name: /Mark Read 10 Pages as complete/i });
-    if (await backfillToggle.count()) {
-      await backfillToggle.first().click();
-      await page.getByRole('button', { name: /Mark Read 10 Pages as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
+    const markCompleteBtn = page.getByRole('button', { name: /Mark Read 10 Pages as complete/i });
+    const markIncompleteBtn = page.getByRole('button', { name: /Mark Read 10 Pages as incomplete/i });
+
+    if (await markCompleteBtn.count()) {
+      await markCompleteBtn.first().click();
+      await markIncompleteBtn.first().waitFor({ state: 'visible', timeout: 30_000 });
       await page.reload({ waitUntil: 'domcontentloaded' });
-      await page.getByRole('button', { name: /Mark Read 10 Pages as incomplete/i }).waitFor({ state: 'visible', timeout: 30_000 });
+      await markIncompleteBtn.first().waitFor({ state: 'visible', timeout: 30_000 });
+    } else if (await markIncompleteBtn.count()) {
+      await markIncompleteBtn.first().click();
+      await markCompleteBtn.first().waitFor({ state: 'visible', timeout: 30_000 });
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await markCompleteBtn.first().waitFor({ state: 'visible', timeout: 30_000 });
     }
   }
 
-  // Sanity: day label renders.
-  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
+  // Verify 5-tab pages load with the new shell.
+  await page.goto(`${baseUrl}/dashboard/group`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: /75 Hard|Build your squad/i }).waitFor({ state: 'visible', timeout: 30_000 });
+  await page.getByText(/Squad snapshot/i).waitFor({ state: 'visible', timeout: 30_000 });
+
+  await page.goto(`${baseUrl}/dashboard/feed`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: 'Activity', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+  if ((await page.getByRole('button', { name: /Open comments/i }).count()) > 0) {
+    await page.getByRole('button', { name: /Open comments/i }).first().click();
+    await page.getByLabel('Write a comment').fill('Locked in.');
+    await page.getByRole('button', { name: /Send comment/i }).click();
+    await page.getByText('Locked in.').waitFor({ state: 'visible', timeout: 30_000 });
+  }
+
+  await page.goto(`${baseUrl}/dashboard/profile`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: /Profile/i }).waitFor({ state: 'visible', timeout: 30_000 });
+  await page.getByText(/Login & Security/i).waitFor({ state: 'visible', timeout: 30_000 });
+
+  // Sanity: today tab still loads after visiting all subpages.
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(async () => {
+    await page.waitForTimeout(1500);
+    await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
+  });
   await page.getByRole('heading', { name: /Today/i }).waitFor({ state: 'visible', timeout: 30_000 });
 
   await browser.close();

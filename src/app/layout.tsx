@@ -10,7 +10,6 @@ const siteDescription =
 
 const appFont = Space_Grotesk({ subsets: ["latin"], variable: "--font-app", display: "swap" });
 
-
 const supabaseOrigin = (() => {
   const value = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!value) return null;
@@ -24,6 +23,7 @@ const supabaseOrigin = (() => {
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  applicationName: "75 Squad",
   title: siteTitle,
   description: siteDescription,
   alternates: {
@@ -51,13 +51,21 @@ export const metadata: Metadata = {
     images: ["/og.png"],
   },
   manifest: "/manifest.json",
-  icons: { apple: "/icons/icon-192.png" },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "75 Squad",
+  },
+  icons: {
+    apple: "/icons/icon-192.png",
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: "#0B0F1A",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

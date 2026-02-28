@@ -1,12 +1,14 @@
-const CACHE_NAME = "75squad-v3";
+const CACHE_NAME = "75squad-v4";
 const STATIC_ASSETS = [
   "/manifest.json",
+  "/offline",
+  "/favicon.ico",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
 
 const CACHEABLE_PATH_PREFIXES = ["/_next/static/", "/icons/"];
-const CACHEABLE_EXACT_PATHS = new Set(["/manifest.json", "/favicon.ico"]);
+const CACHEABLE_EXACT_PATHS = new Set(["/manifest.json", "/favicon.ico", "/offline"]);
 
 const DAILY_MOTIVATION_QUOTES = [
   "Discipline is choosing between what you want now and what you want most.",
@@ -83,7 +85,7 @@ const DAILY_MOTIVATION_QUOTES = [
   "Tough times do not last. Tough people do.",
   "Your results are hidden in your routine.",
   "Finish strong.",
-  "Day by day, you become who you promised to be.",
+  "Day by day, you become who you promised to be."
 ];
 
 function getDailyMotivationQuote() {
@@ -102,19 +104,20 @@ function isCacheableAsset(url, request) {
   return CACHEABLE_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
 }
 
-function shouldBypassCache(url, request) {
+function isNavigationRequest(url, request) {
+  if (request.mode !== "navigate") return false;
+  if (request.method !== "GET") return false;
+  if (url.origin !== self.location.origin) return false;
+  if (url.pathname.startsWith("/api")) return false;
+  return true;
+}
+
+function shouldBypassAssetCache(url, request) {
   if (request.method !== "GET") return true;
 
   if (url.hostname.endsWith("supabase.co")) return true;
-
   if (url.origin !== self.location.origin) return true;
-
   if (request.mode === "navigate") return true;
-
-  if (url.pathname === "/") return true;
-  if (url.pathname.startsWith("/dashboard")) return true;
-  if (url.pathname.startsWith("/auth")) return true;
-  if (url.pathname.startsWith("/join")) return true;
   if (url.pathname.startsWith("/api")) return true;
 
   return false;
@@ -145,7 +148,22 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  if (shouldBypassCache(url, event.request)) {
+  if (isNavigationRequest(url, event.request)) {
+    event.respondWith(
+      (async () => {
+        try {
+          return await fetch(event.request);
+        } catch {
+          const cache = await caches.open(CACHE_NAME);
+          const offlineResponse = await cache.match("/offline");
+          return offlineResponse || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  if (shouldBypassAssetCache(url, event.request)) {
     event.respondWith(fetch(event.request));
     return;
   }
@@ -171,7 +189,6 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// Push notification handler
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {
     title: "75 Squad",
