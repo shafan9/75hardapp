@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { ACHIEVEMENTS } from "@/lib/constants";
 import { useAchievements } from "@/lib/hooks/use-achievements";
@@ -12,6 +13,7 @@ import { subscribeUserToPush, unsubscribeUserFromPush } from "@/lib/push";
 import { cn } from "@/lib/utils";
 import type { NotificationChannel } from "@/lib/types";
 import { useToast } from "@/components/ui/toast-provider";
+import { springs } from "@/lib/animations";
 
 interface NotificationSettingsForm {
   in_app_enabled: boolean;
@@ -29,42 +31,43 @@ function normalizeReminderTime(value: string): string {
   return trimmed.length === 5 ? `${trimmed}:00` : trimmed;
 }
 
-function toTimeInputValue(value: string | null | undefined): string {
-  if (!value) return "21:00";
-  return value.slice(0, 5);
-}
+type SectionKey = "achievements" | "history" | "custom" | "notifications" | "account";
 
 export default function ProfilePage() {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
+
   const { user, profile, loading, updateProfile, signOut } = useAuth();
   const { group } = useGroup({ enabled: !loading && !!user });
-  const { customTasks, addCustomTask, removeCustomTask, currentDay } = useChecklist(group?.id, { enabled: !loading && !!user });
+  const { customTasks, addCustomTask, removeCustomTask, currentDay } = useChecklist(group?.id, {
+    enabled: !loading && !!user,
+  });
   const { earned } = useAchievements(user?.id, group?.id);
 
   const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
   const [displayName, setDisplayName] = useState(profile?.display_name || "");
   const [isEditingName, setIsEditingName] = useState(false);
+  const [openSection, setOpenSection] = useState<SectionKey | null>("achievements");
+
   const [inAppEnabled, setInAppEnabled] = useState(true);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(false);
+
   const [pushConfigured, setPushConfigured] = useState(true);
   const [emailConfigured, setEmailConfigured] = useState(true);
   const [smsConfigured, setSmsConfigured] = useState(true);
+
   const [phoneE164, setPhoneE164] = useState("");
   const [timezone, setTimezone] = useState(localTimezone);
   const [reminderTime, setReminderTime] = useState("21:00");
+
   const [newTaskName, setNewTaskName] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [sendingTestChannel, setSendingTestChannel] = useState<NotificationChannel | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
   const [totalCompletions, setTotalCompletions] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
 
@@ -74,15 +77,14 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user?.id) return;
+
     const userId = user.id;
 
-    async function loadSettingsAndStats() {
+    async function loadProfileState() {
       const [settingsResult, statsResponse, configResponse] = await Promise.all([
         supabase
           .from("user_settings")
-          .select(
-            "in_app_enabled, push_enabled, email_enabled, sms_enabled, phone_e164, timezone, reminder_time"
-          )
+          .select("in_app_enabled, push_enabled, email_enabled, sms_enabled, phone_e164, timezone, reminder_time")
           .eq("user_id", userId)
           .maybeSingle(),
         fetch("/api/profile/stats", { method: "GET", cache: "no-store" }),
@@ -96,36 +98,33 @@ export default function ProfilePage() {
         setSmsEnabled(Boolean(settingsResult.data.sms_enabled));
         setPhoneE164(String(settingsResult.data.phone_e164 ?? ""));
         setTimezone(String(settingsResult.data.timezone ?? localTimezone));
-        setReminderTime(toTimeInputValue(String(settingsResult.data.reminder_time ?? "21:00")));
+        setReminderTime(String(settingsResult.data.reminder_time ?? "21:00").slice(0, 5));
       }
 
       if (configResponse.ok) {
-        const cfg = (await configResponse.json().catch(() => ({}))) as {
+        const config = (await configResponse.json().catch(() => ({}))) as {
           pushConfigured?: unknown;
           emailConfigured?: unknown;
           smsConfigured?: unknown;
         };
-        setPushConfigured(Boolean(cfg.pushConfigured));
-        setEmailConfigured(Boolean(cfg.emailConfigured));
-        setSmsConfigured(Boolean(cfg.smsConfigured));
+
+        setPushConfigured(Boolean(config.pushConfigured));
+        setEmailConfigured(Boolean(config.emailConfigured));
+        setSmsConfigured(Boolean(config.smsConfigured));
       }
 
-      if (!statsResponse.ok) {
-        setTotalCompletions(0);
-        setBestStreak(0);
-        return;
+      if (statsResponse.ok) {
+        const payload = (await statsResponse.json().catch(() => ({}))) as {
+          totalCompletions?: number;
+          bestStreak?: number;
+        };
+
+        setTotalCompletions(Number(payload.totalCompletions ?? 0));
+        setBestStreak(Number(payload.bestStreak ?? 0));
       }
-
-      const payload = (await statsResponse.json().catch(() => ({}))) as {
-        totalCompletions?: number;
-        bestStreak?: number;
-      };
-
-      setTotalCompletions(Number(payload.totalCompletions ?? 0));
-      setBestStreak(Number(payload.bestStreak ?? 0));
     }
 
-    void loadSettingsAndStats();
+    void loadProfileState();
   }, [localTimezone, supabase, user?.id]);
 
   async function persistSettings(settings?: Partial<NotificationSettingsForm>) {
@@ -142,6 +141,7 @@ export default function ProfilePage() {
     };
 
     setSavingSettings(true);
+
     const { error } = await supabase.from("user_settings").upsert(
       {
         user_id: user.id,
@@ -155,6 +155,7 @@ export default function ProfilePage() {
       },
       { onConflict: "user_id" }
     );
+
     setSavingSettings(false);
 
     if (error) {
@@ -163,7 +164,6 @@ export default function ProfilePage() {
       return false;
     }
 
-    toast.success("Notification settings saved.");
     return true;
   }
 
@@ -177,9 +177,7 @@ export default function ProfilePage() {
     const subscription = await subscribeUserToPush(vapidPublicKey);
     const response = await fetch("/api/notifications/push-subscription", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(subscription),
     });
 
@@ -197,9 +195,7 @@ export default function ProfilePage() {
 
     const response = await fetch("/api/notifications/push-subscription", {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint }),
     });
 
@@ -211,54 +207,56 @@ export default function ProfilePage() {
     return true;
   }
 
-  async function toggleInApp() {
-    const next = !inAppEnabled;
-    setInAppEnabled(next);
-    const ok = await persistSettings({ in_app_enabled: next });
-    if (!ok) setInAppEnabled(!next);
-  }
+  async function toggleChannel(channel: NotificationChannel) {
+    if (savingSettings) return;
 
-  async function togglePush() {
-    if (!pushConfigured) {
+    if (channel === "push" && !pushConfigured) {
       toast.error("Push notifications are not configured yet.");
       return;
     }
 
-    const next = !pushEnabled;
-
-    try {
-      if (next) {
-        await registerPushSubscription();
-      } else {
-        await removePushSubscription();
-      }
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Could not update push subscription.");
-      return;
-    }
-
-    setPushEnabled(next);
-    const ok = await persistSettings({ push_enabled: next });
-    if (!ok) {
-      setPushEnabled(!next);
-    }
-  }
-
-  async function toggleEmail() {
-    if (!emailConfigured) {
+    if (channel === "email" && !emailConfigured) {
       toast.error("Email notifications are not configured yet.");
       return;
     }
 
-    const next = !emailEnabled;
-    setEmailEnabled(next);
-    const ok = await persistSettings({ email_enabled: next });
-    if (!ok) setEmailEnabled(!next);
-  }
-
-  async function toggleSms() {
-    if (!smsConfigured) {
+    if (channel === "sms" && !smsConfigured) {
       toast.error("SMS notifications are not configured yet.");
+      return;
+    }
+
+    if (channel === "in_app") {
+      const next = !inAppEnabled;
+      setInAppEnabled(next);
+      const ok = await persistSettings({ in_app_enabled: next });
+      if (!ok) setInAppEnabled(!next);
+      return;
+    }
+
+    if (channel === "push") {
+      const next = !pushEnabled;
+      try {
+        if (next) {
+          await registerPushSubscription();
+        } else {
+          await removePushSubscription();
+        }
+      } catch (error: unknown) {
+        toast.error(error instanceof Error ? error.message : "Could not update push subscription.");
+        return;
+      }
+
+      setPushEnabled(next);
+      const ok = await persistSettings({ push_enabled: next });
+      if (!ok) setPushEnabled(!next);
+      return;
+    }
+
+    if (channel === "email") {
+      const next = !emailEnabled;
+      setEmailEnabled(next);
+      const ok = await persistSettings({ email_enabled: next });
+      if (!ok) setEmailEnabled(!next);
       return;
     }
 
@@ -266,31 +264,6 @@ export default function ProfilePage() {
     setSmsEnabled(next);
     const ok = await persistSettings({ sms_enabled: next });
     if (!ok) setSmsEnabled(!next);
-  }
-
-  async function saveAdvancedSettings() {
-    const ok = await persistSettings();
-    if (!ok) return;
-  }
-
-  async function sendTest(channel: NotificationChannel) {
-    setSendingTestChannel(channel);
-    const response = await fetch("/api/notifications/test", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ channel }),
-    });
-    setSendingTestChannel(null);
-
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      toast.error(payload.error ?? `Could not send ${channel} test notification.`);
-      return;
-    }
-
-    toast.success(`${channel.toUpperCase()} test notification sent.`);
   }
 
   async function saveName() {
@@ -306,42 +279,6 @@ export default function ProfilePage() {
     setShowAddTask(false);
   }
 
-  async function changePassword() {
-    const nextPassword = newPassword.trim();
-    const nextConfirm = confirmNewPassword.trim();
-
-    if (!nextPassword || !nextConfirm) {
-      setPasswordError("Enter your new password twice.");
-      return;
-    }
-
-    if (nextPassword.length < 8) {
-      setPasswordError("Use at least 8 characters for your password.");
-      return;
-    }
-
-    if (nextPassword !== nextConfirm) {
-      setPasswordError("Passwords do not match.");
-      return;
-    }
-
-    setChangingPassword(true);
-    setPasswordError(null);
-
-    const { error } = await supabase.auth.updateUser({ password: nextPassword });
-
-    setChangingPassword(false);
-
-    if (error) {
-      setPasswordError(error.message || "Could not update password.");
-      return;
-    }
-
-    setNewPassword("");
-    setConfirmNewPassword("");
-    toast.success("Password updated.");
-  }
-
   async function handleSignOut() {
     setSigningOut(true);
     await signOut();
@@ -352,9 +289,11 @@ export default function ProfilePage() {
     return (
       <div className="flex min-h-[40dvh] items-center justify-center">
         <motion.div
-          className="h-8 w-8 rounded-full border-2 border-accent-violet/30 border-t-accent-violet"
+          className="h-10 w-10 rounded-full border-2 border-accent-cyan/30 border-t-accent-cyan"
           animate={{ rotate: 360 }}
           transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+          role="status"
+          aria-label="Loading profile"
         />
       </div>
     );
@@ -362,494 +301,332 @@ export default function ProfilePage() {
 
   if (!user || !profile) {
     return (
-      <div className="space-y-5 pb-6">
-        <h1 className="text-2xl font-black gradient-text">Profile</h1>
-        <div className="glass-card p-6 text-center">
-          <p className="text-3xl">👤</p>
-          <p className="mt-2 text-sm text-text-secondary">Please sign in to view your profile.</p>
-        </div>
+      <div className="mx-auto mt-10 max-w-xl rounded-[24px] border border-white/10 bg-white/[0.04] p-6 text-center backdrop-blur-2xl">
+        <p className="text-3xl" aria-hidden="true">👤</p>
+        <h1 className="mt-3 text-xl font-black text-text-primary">Sign in required</h1>
+        <p className="mt-2 text-sm text-text-secondary">Please sign in to view your profile.</p>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6 pb-6">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-black gradient-text">Profile</h1>
-      </motion.div>
+  const stats = [
+    { label: "Current Streak", value: currentDay, accent: "text-accent-orange", icon: "🔥" },
+    { label: "Tasks Done", value: totalCompletions, accent: "text-accent-cyan", icon: "✅" },
+    { label: "Best Streak", value: bestStreak, accent: "text-accent-gold", icon: "⚡" },
+    { label: "Badges", value: earned.length, accent: "text-accent-info", icon: "🏅" },
+  ];
 
-      <motion.div
-        className="glass-card flex flex-col items-center gap-4 p-6"
+  const sections: Array<{ key: SectionKey; label: string; description: string }> = [
+    { key: "achievements", label: "Achievements", description: "Badge progress" },
+    { key: "history", label: "History", description: "Past-day edits" },
+    { key: "custom", label: "Custom Tasks", description: "Manage your personal tasks" },
+    { key: "notifications", label: "Notifications", description: "Reminder channels" },
+    { key: "account", label: "Account", description: "Sign out" },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-5 pb-8">
+      <motion.section
+        className="glass-card rounded-[30px] p-6 text-center"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={springs.smooth}
       >
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-accent-violet via-accent-pink to-accent-amber text-3xl font-bold text-white">
-          {profile.display_name?.[0]?.toUpperCase() || "?"}
+        <div className="mx-auto inline-flex rounded-full border-2 border-accent-cyan/45 p-[3px]">
+          <div className="grid h-[120px] w-[120px] place-items-center rounded-full bg-gradient-to-br from-accent-cyan/80 to-accent-info/65 text-4xl font-black text-white">
+            {profile.display_name?.[0]?.toUpperCase() || "?"}
+          </div>
         </div>
 
         {isEditingName ? (
-          <div className="flex w-full max-w-xs items-center gap-2">
+          <div className="mx-auto mt-4 flex w-full max-w-sm items-center gap-2">
             <input
               type="text"
               name="display_name"
-              aria-label="Display name"
-              autoComplete="off"
-              spellCheck={false}
               value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && saveName()}
-              className="flex-1 rounded-xl border border-border bg-bg-surface px-3 py-2 text-center text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-            />
-            <motion.button
-              onClick={saveName}
-              className="rounded-xl bg-accent-violet px-3 py-2 text-sm font-semibold text-white"
-              whileTap={{ scale: 0.95 }}
-            >
-              Save
-            </motion.button>
-          </div>
-        ) : (
-          <motion.button
-            onClick={() => setIsEditingName(true)}
-            className="flex items-center gap-2"
-            whileTap={{ scale: 0.98 }}
-          >
-            <span className="text-lg font-bold text-text-primary">
-              {profile.display_name || "Anonymous"}
-            </span>
-            <span className="text-sm text-text-muted">✏️</span>
-          </motion.button>
-        )}
-
-        <p className="text-xs text-text-muted">{user.email}</p>
-      </motion.div>
-
-      <motion.div
-        className="glass-card p-5"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
-      >
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Login & Security
-        </p>
-        <p className="mb-3 text-xs text-text-secondary">
-          If you originally used Google sign-in, set a password here so you can sign in with email + password next time.
-        </p>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-secondary">New password</span>
-            <input
-              type="password"
-              name="new_password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-              placeholder="At least 8 characters"
-            />
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-text-secondary">Confirm password</span>
-            <input
-              type="password"
-              name="confirm_new_password"
-              autoComplete="new-password"
-              value={confirmNewPassword}
-              onChange={(event) => setConfirmNewPassword(event.target.value)}
+              onChange={(event) => setDisplayName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
-                  void changePassword();
+                  void saveName();
                 }
               }}
-              className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-              placeholder="Repeat password"
+              className="flex-1 rounded-xl border border-white/10 bg-bg-card px-3 py-2 text-center text-sm text-text-primary"
             />
-          </label>
-        </div>
-
-        {passwordError && <p className="mt-3 text-sm text-accent-red">{passwordError}</p>}
-
-        <button
-          onClick={() => {
-            void changePassword();
-          }}
-          disabled={changingPassword}
-          className="mt-3 rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-3 py-2 text-xs font-semibold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-        >
-          {changingPassword ? "Updating…" : "Set / Change Password"}
-        </button>
-      </motion.div>
-
-      <motion.div
-        className="glass-card p-5"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Your Stats 📊
-        </p>
-
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-2xl font-black text-accent-amber">{currentDay}</p>
-            <p className="mt-1 text-[10px] text-text-muted">🔥 Current Streak</p>
+            <button
+              type="button"
+              onClick={() => {
+                void saveName();
+              }}
+              className="rounded-xl bg-gradient-to-r from-accent-cyan to-accent-info px-3 py-2 text-sm font-semibold text-white"
+            >
+              Save
+            </button>
           </div>
-          <div>
-            <p className="text-2xl font-black text-accent-violet">{earned.length}</p>
-            <p className="mt-1 text-[10px] text-text-muted">🏅 Achievements</p>
-          </div>
-          <div>
-            <p className="text-2xl font-black text-accent-emerald">{totalCompletions}</p>
-            <p className="mt-1 text-[10px] text-text-muted">✅ Tasks Done</p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border/50 pt-4 text-center">
-          <div>
-            <p className="text-lg font-bold text-text-primary">{bestStreak}</p>
-            <p className="mt-1 text-[10px] text-text-muted">⚡ Best Streak</p>
-          </div>
-          <div>
-            <p className="text-lg font-bold text-text-primary">
-              {earned.length}/{ACHIEVEMENTS.length}
-            </p>
-            <p className="mt-1 text-[10px] text-text-muted">🎖️ Badges</p>
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.div
-        className="glass-card p-5"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Your Custom Tasks 🎯
-          </p>
-          <motion.button
-            onClick={() => setShowAddTask(!showAddTask)}
-            className="text-xs font-semibold text-accent-violet"
-            whileTap={{ scale: 0.95 }}
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsEditingName(true)}
+            className="mt-4 inline-flex items-center gap-2 text-2xl font-black text-text-primary"
           >
-            {showAddTask ? "Cancel" : "+ Add"}
-          </motion.button>
-        </div>
+            {profile.display_name || "Anonymous"}
+            <span className="text-sm text-text-muted">Edit</span>
+          </button>
+        )}
 
-        <AnimatePresence>
-          {showAddTask && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="mb-3 overflow-hidden"
-            >
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  name="profile_custom_task_name"
-                  aria-label="Custom task name"
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="Task name…"
-                  value={newTaskName}
-                  onChange={(e) => setNewTaskName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && void handleAddCustomTask()}
-                  className="flex-1 rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-                />
-                <motion.button
-                  onClick={() => {
-                    void handleAddCustomTask();
-                  }}
-                  className="rounded-xl bg-accent-violet px-4 py-2 text-sm font-semibold text-white"
-                  whileTap={{ scale: 0.95 }}
-                >
-                  Add
-                </motion.button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <p className="mt-2 text-sm text-text-secondary">{user.email}</p>
+      </motion.section>
 
-        <div className="space-y-2">
-          {customTasks.map((task) => (
-            <motion.div
-              key={task.id}
-              layout
-              className="flex items-center gap-3 rounded-xl border border-border/50 bg-bg-surface/50 p-3"
-            >
-              <span className="text-lg">{task.emoji}</span>
-              <p className="flex-1 text-sm font-medium text-text-primary">{task.name}</p>
-              <motion.button
-                onClick={() => {
-                  void removeCustomTask(task.id);
-                }}
-                aria-label={"Remove " + task.name}
-                className="p-1 text-sm text-text-muted transition-colors hover:text-accent-red"
-                whileTap={{ scale: 0.9 }}
+      <motion.section
+        className="grid grid-cols-2 gap-3"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springs.smooth, delay: 0.03 }}
+      >
+        {stats.map((stat) => (
+          <div key={stat.label} className="glass-card rounded-2xl p-4">
+            <p className="text-xs uppercase tracking-[0.14em] text-text-muted">{stat.label}</p>
+            <p className={cn("mt-1 text-3xl font-black", stat.accent)}>
+              {stat.icon} {stat.value}
+            </p>
+          </div>
+        ))}
+      </motion.section>
+
+      <motion.section
+        className="space-y-3"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springs.smooth, delay: 0.06 }}
+      >
+        {sections.map((section) => {
+          const isOpen = openSection === section.key;
+          return (
+            <div key={section.key} className="glass-card rounded-2xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setOpenSection((prev) => (prev === section.key ? null : section.key))}
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
               >
-                ✕
-              </motion.button>
-            </motion.div>
-          ))}
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">{section.label}</p>
+                  <p className="text-xs text-text-muted">{section.description}</p>
+                </div>
+                <span className="text-text-secondary">{isOpen ? "−" : "+"}</span>
+              </button>
 
-          {customTasks.length === 0 && (
-            <p className="py-3 text-center text-xs text-text-muted">
-              No custom tasks yet.
-            </p>
-          )}
-        </div>
-      </motion.div>
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={springs.smooth}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-white/10 px-4 py-4">
+                      {section.key === "achievements" ? (
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {ACHIEVEMENTS.map((achievement) => {
+                            const unlocked = earned.includes(achievement.key);
+                            return (
+                              <div
+                                key={achievement.key}
+                                className={
+                                  "rounded-xl border p-3 text-center " +
+                                  (unlocked
+                                    ? "border-accent-cyan/30 bg-accent-cyan/10"
+                                    : "border-white/10 bg-white/[0.03]")
+                                }
+                              >
+                                <p className="text-xl" aria-hidden="true">{achievement.emoji}</p>
+                                <p className="mt-1 text-xs font-semibold text-text-primary">{achievement.label}</p>
+                                <p className="mt-1 text-[11px] text-text-muted">{achievement.description}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
 
-      <motion.div
-        className="glass-card p-5"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25 }}
-      >
-        <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Notifications 🔔
-        </p>
+                      {section.key === "history" ? (
+                        <div className="space-y-3">
+                          <p className="text-sm text-text-secondary">
+                            Review and edit past days when you miss a check-in.
+                          </p>
+                          <Link
+                            href="/dashboard/history"
+                            className="inline-flex rounded-xl bg-gradient-to-r from-accent-cyan to-accent-info px-4 py-2 text-sm font-semibold text-white"
+                          >
+                            Open History
+                          </Link>
+                        </div>
+                      ) : null}
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-text-primary">In-App Alerts</p>
-              <p className="text-xs text-text-muted">Shown in your Alerts tab</p>
+                      {section.key === "custom" ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-text-secondary">Your custom tasks</p>
+                            <button
+                              type="button"
+                              onClick={() => setShowAddTask((value) => !value)}
+                              className="rounded-full bg-accent-cyan/14 px-3 py-1 text-xs font-semibold text-accent-cyan"
+                            >
+                              {showAddTask ? "Cancel" : "+ Add"}
+                            </button>
+                          </div>
+
+                          <AnimatePresence>
+                            {showAddTask && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    name="profile_custom_task_name"
+                                    value={newTaskName}
+                                    onChange={(event) => setNewTaskName(event.target.value)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        void handleAddCustomTask();
+                                      }
+                                    }}
+                                    placeholder="Task name..."
+                                    className="flex-1 rounded-xl border border-white/10 bg-bg-card px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      void handleAddCustomTask();
+                                    }}
+                                    className="rounded-xl bg-gradient-to-r from-accent-cyan to-accent-info px-4 py-2 text-sm font-semibold text-white"
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          <div className="space-y-2">
+                            {customTasks.map((task) => (
+                              <div
+                                key={task.id}
+                                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"
+                              >
+                                <span aria-hidden="true">{task.emoji}</span>
+                                <span className="flex-1 text-sm text-text-primary">{task.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void removeCustomTask(task.id);
+                                  }}
+                                  className="text-xs text-text-muted hover:text-accent-danger"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                            {customTasks.length === 0 ? (
+                              <p className="text-xs text-text-muted">No custom tasks yet.</p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {section.key === "notifications" ? (
+                        <div className="space-y-3">
+                          {[
+                            {
+                              key: "in_app" as NotificationChannel,
+                              title: "In-App Alerts",
+                              subtitle: "Shown in your alerts tab",
+                              enabled: inAppEnabled,
+                              configured: true,
+                            },
+                            {
+                              key: "push" as NotificationChannel,
+                              title: "Push Notifications",
+                              subtitle: "Browser or phone reminders",
+                              enabled: pushEnabled,
+                              configured: pushConfigured,
+                            },
+                            {
+                              key: "email" as NotificationChannel,
+                              title: "Email Notifications",
+                              subtitle: "Reminder emails",
+                              enabled: emailEnabled,
+                              configured: emailConfigured,
+                            },
+                            {
+                              key: "sms" as NotificationChannel,
+                              title: "SMS Notifications",
+                              subtitle: "Text reminders",
+                              enabled: smsEnabled,
+                              configured: smsConfigured,
+                            },
+                          ].map((row) => (
+                            <div key={row.key} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                              <div>
+                                <p className="text-sm font-medium text-text-primary">{row.title}</p>
+                                <p className="text-xs text-text-muted">{row.subtitle}</p>
+                                {!row.configured ? (
+                                  <p className="text-xs text-accent-warning">Not configured yet</p>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void toggleChannel(row.key);
+                                }}
+                                aria-label={`Toggle ${row.title}`}
+                                role="switch"
+                                aria-checked={row.enabled}
+                                disabled={savingSettings || !row.configured}
+                                className={cn(
+                                  "relative h-7 w-12 rounded-full transition-colors",
+                                  row.enabled ? "bg-accent-success" : "border border-white/15 bg-bg-surface",
+                                  (savingSettings || !row.configured) && "opacity-60"
+                                )}
+                              >
+                                <motion.div
+                                  className="absolute top-1 h-5 w-5 rounded-full bg-white"
+                                  animate={{ left: row.enabled ? 26 : 4 }}
+                                  transition={springs.snappy}
+                                />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {section.key === "account" ? (
+                        <div className="space-y-3">
+                          <p className="text-sm text-text-secondary">
+                            Sign out from this browser session.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleSignOut();
+                            }}
+                            disabled={signingOut}
+                            className="rounded-xl border border-accent-danger/35 px-4 py-2 text-sm font-semibold text-accent-danger disabled:opacity-60"
+                          >
+                            {signingOut ? "Signing out..." : "Sign out"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <motion.button
-              onClick={() => {
-                void toggleInApp();
-              }}
-              aria-label="Toggle in-app alerts"
-              role="switch"
-              aria-checked={inAppEnabled}
-              disabled={savingSettings}
-              className={cn(
-                "relative h-7 w-12 rounded-full transition-colors",
-                inAppEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                savingSettings && "opacity-60"
-              )}
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.div
-                className="absolute top-1 h-5 w-5 rounded-full bg-white"
-                animate={{ left: inAppEnabled ? 26 : 4 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-            </motion.button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-text-primary">Push Notifications</p>
-              <p className="text-xs text-text-muted">Browser/phone push reminders</p>
-              {!pushConfigured && (
-                <p className="text-xs text-accent-amber">Not configured yet</p>
-              )}
-            </div>
-            <motion.button
-              onClick={() => {
-                void togglePush();
-              }}
-              aria-label="Toggle push notifications"
-              role="switch"
-              aria-checked={pushEnabled}
-              disabled={savingSettings || !pushConfigured}
-              className={cn(
-                "relative h-7 w-12 rounded-full transition-colors",
-                pushEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                (savingSettings || !pushConfigured) && "opacity-60"
-              )}
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.div
-                className="absolute top-1 h-5 w-5 rounded-full bg-white"
-                animate={{ left: pushEnabled ? 26 : 4 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-            </motion.button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-text-primary">Email Notifications</p>
-              <p className="text-xs text-text-muted">
-                Reminder emails to your account
-              </p>
-              {!emailConfigured && (
-                <p className="text-xs text-accent-amber">Not configured yet</p>
-              )}
-            </div>
-            <motion.button
-              onClick={() => {
-                void toggleEmail();
-              }}
-              aria-label="Toggle email notifications"
-              role="switch"
-              aria-checked={emailEnabled}
-              disabled={savingSettings || !emailConfigured}
-              className={cn(
-                "relative h-7 w-12 rounded-full transition-colors",
-                emailEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                (savingSettings || !emailConfigured) && "opacity-60"
-              )}
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.div
-                className="absolute top-1 h-5 w-5 rounded-full bg-white"
-                animate={{ left: emailEnabled ? 26 : 4 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-            </motion.button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-text-primary">SMS Notifications</p>
-              <p className="text-xs text-text-muted">
-                Text reminders to your phone
-              </p>
-              {!smsConfigured && (
-                <p className="text-xs text-accent-amber">Not configured yet</p>
-              )}
-            </div>
-            <motion.button
-              onClick={() => {
-                void toggleSms();
-              }}
-              aria-label="Toggle SMS notifications"
-              role="switch"
-              aria-checked={smsEnabled}
-              disabled={savingSettings || !smsConfigured}
-              className={cn(
-                "relative h-7 w-12 rounded-full transition-colors",
-                smsEnabled ? "bg-accent-emerald" : "border border-border bg-bg-surface",
-                (savingSettings || !smsConfigured) && "opacity-60"
-              )}
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.div
-                className="absolute top-1 h-5 w-5 rounded-full bg-white"
-                animate={{ left: smsEnabled ? 26 : 4 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-            </motion.button>
-          </div>
-
-          <div
-            className="grid gap-3 border-t border-border/50 pt-3"
-          >
-            <label className="space-y-1">
-              <span className="text-xs font-medium text-text-secondary">Phone (E.164 for SMS)</span>
-              <input
-                type="tel"
-                name="phone_e164"
-                autoComplete="tel"
-                inputMode="tel"
-                placeholder="+15551234567"
-                value={phoneE164}
-                onChange={(event) => setPhoneE164(event.target.value)}
-                disabled={!smsConfigured || savingSettings}
-                className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-              />
-            </label>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs font-medium text-text-secondary">Timezone</span>
-                <input
-                  type="text"
-                  name="timezone"
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="America/New_York"
-                  value={timezone}
-                  onChange={(event) => setTimezone(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-                />
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-xs font-medium text-text-secondary">Daily reminder time</span>
-                <input
-                  type="time"
-                  name="reminder_time"
-                  aria-label="Daily reminder time"
-                  value={reminderTime}
-                  onChange={(event) => setReminderTime(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-                />
-              </label>
-            </div>
-
-            <button
-              onClick={() => {
-                void saveAdvancedSettings();
-              }}
-              disabled={savingSettings}
-              className="rounded-xl bg-accent-violet px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
-            >
-              Save Reminder Details
-            </button>
-          </div>
-
-          <div className="grid gap-2 border-t border-border/50 pt-3 sm:grid-cols-2">
-            <button
-              onClick={() => {
-                void sendTest("in_app");
-              }}
-              disabled={sendingTestChannel !== null}
-              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
-            >
-              {sendingTestChannel === "in_app" ? "Sending…" : "Test In-App"}
-            </button>
-            <button
-              onClick={() => {
-                void sendTest("push");
-              }}
-              disabled={sendingTestChannel !== null}
-              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
-            >
-              {sendingTestChannel === "push" ? "Sending…" : "Test Push"}
-            </button>
-            <button
-              onClick={() => {
-                void sendTest("email");
-              }}
-              disabled={sendingTestChannel !== null}
-              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
-            >
-              {sendingTestChannel === "email" ? "Sending…" : "Test Email"}
-            </button>
-            <button
-              onClick={() => {
-                void sendTest("sms");
-              }}
-              disabled={sendingTestChannel !== null}
-              className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-primary disabled:opacity-60"
-            >
-              {sendingTestChannel === "sms" ? "Sending…" : "Test SMS"}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      <motion.button
-        onClick={() => {
-          void handleSignOut();
-        }}
-        disabled={signingOut}
-        className="w-full rounded-2xl border border-accent-red/30 py-3 text-sm font-semibold text-accent-red transition-colors hover:bg-accent-red/10 disabled:opacity-50"
-        whileTap={{ scale: 0.98 }}
-      >
-        {signingOut ? "Signing out…" : "Sign Out 👋"}
-      </motion.button>
+          );
+        })}
+      </motion.section>
     </div>
   );
 }

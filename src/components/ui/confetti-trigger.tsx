@@ -8,10 +8,10 @@ interface ConfettiTriggerProps {
 }
 
 const CONFETTI_COLORS = [
-  "#7C3AED", // violet
-  "#EC4899", // pink
-  "#F59E0B", // amber
-  "#10B981", // emerald
+  "#00D4FF", // cyan
+  "#FF6B35", // orange
+  "#FFB800", // gold
+  "#7C4DFF", // purple
 ];
 
 export function ConfettiTrigger({ trigger }: ConfettiTriggerProps) {

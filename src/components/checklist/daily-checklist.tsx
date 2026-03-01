@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { CelebrationOverlay } from "@/components/celebration-overlay";
+import { ConfettiTrigger } from "@/components/ui/confetti-trigger";
 import { DEFAULT_TASKS } from "@/lib/constants";
-import { CustomTask } from "@/lib/types";
+import type { CustomTask } from "@/lib/types";
+import { springs } from "@/lib/animations";
 import { cn } from "@/lib/utils";
 import { TaskItem } from "./task-item";
-import { ConfettiTrigger } from "@/components/ui/confetti-trigger";
 
 const EMOJI_OPTIONS = ["✨", "🎯", "🧘", "🏋️", "🧠", "💊", "🚿", "🌅", "📝", "🎵"];
 
@@ -18,6 +20,7 @@ interface DailyChecklistProps {
   onAddCustomTask: (name: string, emoji: string) => void;
   onRemoveCustomTask: (id: string) => void;
   isAllDone: boolean;
+  currentDay?: number;
 }
 
 export function DailyChecklist({
@@ -28,55 +31,85 @@ export function DailyChecklist({
   onAddCustomTask,
   onRemoveCustomTask,
   isAllDone,
+  currentDay = 1,
 }: DailyChecklistProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState(EMOJI_OPTIONS[0]);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
+
+  useEffect(() => {
+    const storageKey = "75squad_swipe_hint_seen";
+    if (typeof window === "undefined") return;
+
+    const seen = window.localStorage.getItem(storageKey);
+    if (!seen) {
+      setShowSwipeHint(true);
+      window.localStorage.setItem(storageKey, "1");
+      const timer = window.setTimeout(() => setShowSwipeHint(false), 4500);
+      return () => window.clearTimeout(timer);
+    }
+
+    return;
+  }, []);
+
+  useEffect(() => {
+    if (isAllDone) setShowCelebration(true);
+  }, [isAllDone]);
+
+  const completedRequiredCount = useMemo(
+    () =>
+      DEFAULT_TASKS.filter(
+        (task) => !("optional" in task && task.optional) && completions.includes(task.key)
+      ).length,
+    [completions]
+  );
 
   const handleAddTask = useCallback(() => {
-    if (newTaskName.trim()) {
-      onAddCustomTask(newTaskName.trim(), selectedEmoji);
-      setNewTaskName("");
-      setSelectedEmoji(EMOJI_OPTIONS[0]);
-      setShowAddForm(false);
-    }
-  }, [newTaskName, selectedEmoji, onAddCustomTask]);
+    if (!newTaskName.trim()) return;
+    onAddCustomTask(newTaskName.trim(), selectedEmoji);
+    setNewTaskName("");
+    setSelectedEmoji(EMOJI_OPTIONS[0]);
+    setShowAddForm(false);
+  }, [newTaskName, onAddCustomTask, selectedEmoji]);
 
   return (
     <div className="space-y-4">
-      {/* Confetti when all done */}
       <ConfettiTrigger trigger={isAllDone} />
+      <CelebrationOverlay
+        open={showCelebration}
+        onClose={() => setShowCelebration(false)}
+        day={Math.max(1, currentDay)}
+        tasksDone={DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).length}
+        streak={Math.max(1, currentDay)}
+      />
 
-      {/* All done celebration banner */}
       <AnimatePresence>
-        {isAllDone && (
+        {showSwipeHint && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, height: 0 }}
-            animate={{ opacity: 1, scale: 1, height: "auto" }}
-            exit={{ opacity: 0, scale: 0.9, height: 0 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="rounded-2xl border border-accent-cyan/25 bg-accent-cyan/10 px-3 py-2 text-xs text-accent-cyan"
           >
-            <div className="rounded-2xl border border-accent-emerald/30 bg-gradient-to-r from-accent-violet/20 via-accent-pink/20 to-accent-amber/20 p-4 text-center">
-              <p className="text-2xl font-bold gradient-text">ALL TASKS DONE!</p>
-              <p className="mt-1 text-sm text-text-secondary">
-                You crushed it today! Keep the momentum going.
-              </p>
-            </div>
+            Tip: Tap the right circle to complete tasks quickly.
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Default tasks */}
-      <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-bold text-text-primary">Today&apos;s Tasks</h3>
+        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-text-secondary">
+          {completedRequiredCount}/
+          {DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).length} done
+        </span>
+      </div>
+
+      <div className="space-y-3">
         <AnimatePresence mode="popLayout">
-          {DEFAULT_TASKS.map((task, index) => (
-            <motion.div
-              key={task.key}
-              layout
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
+          {DEFAULT_TASKS.map((task) => (
+            <motion.div key={task.key} layout transition={springs.smooth}>
               <TaskItem
                 taskKey={task.key}
                 emoji={task.emoji}
@@ -92,59 +125,52 @@ export function DailyChecklist({
         </AnimatePresence>
       </div>
 
-      {/* Custom tasks section */}
-      <div className="mt-6 space-y-3">
+      <div className="mt-4 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-text-secondary">Custom Tasks</h3>
+          <h4 className="text-sm font-semibold text-text-secondary">Custom Tasks</h4>
           <button
             type="button"
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => setShowAddForm((v) => !v)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary",
+              "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
               showAddForm
-                ? "bg-accent-red/10 text-accent-red hover:bg-accent-red/20"
-                : "bg-accent-violet/10 text-accent-violet hover:bg-accent-violet/20"
+                ? "bg-accent-danger/15 text-accent-danger"
+                : "bg-accent-cyan/14 text-accent-cyan"
             )}
           >
             {showAddForm ? "Cancel" : "+ Add Task"}
           </button>
         </div>
 
-        {/* Add custom task form */}
         <AnimatePresence>
           {showAddForm && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              transition={springs.smooth}
               className="overflow-hidden"
             >
-              <div className="space-y-3 rounded-2xl border border-border bg-bg-card p-4">
-                {/* Emoji picker */}
-                <div>
-                  <p className="mb-2 text-xs text-text-muted">Pick an emoji:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {EMOJI_OPTIONS.map((e) => (
-                      <button
-                        type="button"
-                        key={e}
-                        onClick={() => setSelectedEmoji(e)}
-                        aria-label={"Choose emoji " + e}
-                        className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-xl text-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary",
-                          selectedEmoji === e
-                            ? "bg-accent-violet/20 ring-2 ring-accent-violet scale-110"
-                            : "bg-bg-surface hover:bg-bg-card-hover"
-                        )}
-                      >
-                        {e}
-                      </button>
-                    ))}
-                  </div>
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-bg-card p-3.5">
+                <div className="flex flex-wrap gap-2">
+                  {EMOJI_OPTIONS.map((emoji) => (
+                    <button
+                      type="button"
+                      key={emoji}
+                      onClick={() => setSelectedEmoji(emoji)}
+                      aria-label={`Choose emoji ${emoji}`}
+                      className={cn(
+                        "grid h-9 w-9 place-items-center rounded-xl text-lg transition-colors",
+                        selectedEmoji === emoji
+                          ? "bg-accent-cyan/20 ring-2 ring-accent-cyan"
+                          : "bg-bg-surface hover:bg-bg-card-hover"
+                      )}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Task name input */}
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -153,17 +179,19 @@ export function DailyChecklist({
                     autoComplete="off"
                     spellCheck={false}
                     value={newTaskName}
-                    onChange={(e) => setNewTaskName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAddTask()}
-                    placeholder="Task name…"
-                    className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+                    onChange={(event) => setNewTaskName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") handleAddTask();
+                    }}
+                    placeholder="Task name..."
+                    className="flex-1 rounded-xl border border-white/10 bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
                     maxLength={40}
                   />
                   <button
                     type="button"
                     onClick={handleAddTask}
                     disabled={!newTaskName.trim()}
-                    className="rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+                    className="rounded-xl bg-gradient-to-r from-accent-cyan to-accent-info px-4 py-2 text-sm font-semibold text-white disabled:opacity-45"
                   >
                     Add
                   </button>
@@ -173,57 +201,57 @@ export function DailyChecklist({
           )}
         </AnimatePresence>
 
-        {/* Custom tasks list */}
         <AnimatePresence mode="popLayout">
-          {customTasks.map((task) => (
-            <motion.div
-              key={task.id}
-              layout
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20, scale: 0.9 }}
-            >
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <TaskItem
-                    taskKey={`custom_${task.id}`}
-                    emoji={task.emoji}
-                    label={task.name}
-                    description="Custom task"
-                    isCompleted={completions.includes(`custom_${task.id}`)}
-                    onToggle={() => onToggleTask(`custom_${task.id}`)}
-                    onAddNote={(note) => onAddNote(`custom_${task.id}`, note)}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onRemoveCustomTask(task.id)}
-                  className="flex-shrink-0 rounded-lg p-2 text-text-muted transition-colors hover:bg-accent-red/10 hover:text-accent-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
-                  aria-label={`Remove ${task.name}`}
-                >
-                  <svg
-                    aria-hidden="true"
-                    focusable="false"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 14 14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
+          {customTasks.map((task) => {
+            const customKey = `custom_${task.id}`;
+            return (
+              <motion.div
+                key={task.id}
+                layout
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <TaskItem
+                      taskKey={customKey}
+                      emoji={task.emoji}
+                      label={task.name}
+                      description="Custom task"
+                      isCompleted={completions.includes(customKey)}
+                      onToggle={() => onToggleTask(customKey)}
+                      onAddNote={(note) => onAddNote(customKey, note)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveCustomTask(task.id)}
+                    className="rounded-lg p-2 text-text-muted transition-colors hover:bg-accent-danger/12 hover:text-accent-danger"
+                    aria-label={`Remove ${task.name}`}
                   >
-                    <path d="M3 3l8 8M11 3l-8 8" />
-                  </svg>
-                </button>
-              </div>
-            </motion.div>
-          ))}
+                    <svg
+                      aria-hidden="true"
+                      focusable="false"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                    >
+                      <path d="M3 3l8 8M11 3l-8 8" />
+                    </svg>
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
 
         {customTasks.length === 0 && !showAddForm && (
-          <p className="py-2 text-center text-xs text-text-muted">
-            No custom tasks yet. Add one above.
-          </p>
+          <p className="py-2 text-center text-xs text-text-muted">No custom tasks yet. Add one above.</p>
         )}
       </div>
     </div>

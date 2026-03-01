@@ -1,21 +1,35 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg-primary: #0B0F1A;
-  --color-bg-card: #151A2D;
-  --color-bg-card-hover: #1C2240;
-  --color-bg-surface: #1E2444;
-  --color-text-primary: #FFFFFF;
-  --color-text-secondary: #A4AECF;
-  --color-text-muted: #8E9AC0;
-  --color-accent-violet: #7C3AED;
-  --color-accent-pink: #EC4899;
-  --color-accent-amber: #F59E0B;
-  --color-accent-emerald: #10B981;
-  --color-accent-blue: #3B82F6;
-  --color-accent-red: #EF4444;
-  --color-border: #2A3150;
-  --color-border-light: #374168;
+  --color-bg-deepest: #07070c;
+  --color-bg-primary: #0f0f17;
+  --color-bg-card: #16161f;
+  --color-bg-card-hover: #1e1e2a;
+  --color-bg-surface: #242433;
+
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #8888a0;
+  --color-text-muted: #555568;
+
+  --color-accent-cyan: #00d4ff;
+  --color-accent-orange: #ff6b35;
+  --color-accent-gold: #ffb800;
+  --color-accent-info: #7c4dff;
+  --color-accent-success: #00e676;
+  --color-accent-warning: #ffb800;
+  --color-accent-danger: #ff4757;
+
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-light: rgba(255, 255, 255, 0.1);
+
+  /* Legacy aliases for existing classes still used in non-overhauled screens */
+  --color-accent-violet: #7c4dff;
+  --color-accent-pink: #ff6b35;
+  --color-accent-amber: #ffb800;
+  --color-accent-emerald: #00e676;
+  --color-accent-blue: #00d4ff;
+  --color-accent-red: #ff4757;
+
   --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -35,10 +49,10 @@ html {
 
 body {
   background:
-    radial-gradient(1000px circle at 20% 0%, rgba(124, 58, 237, 0.22), transparent 45%),
-    radial-gradient(900px circle at 80% 15%, rgba(236, 72, 153, 0.18), transparent 45%),
-    radial-gradient(900px circle at 50% 95%, rgba(245, 158, 11, 0.12), transparent 55%),
-    var(--color-bg-primary);
+    radial-gradient(56rem 32rem at 16% -8%, rgba(0, 212, 255, 0.2), transparent 62%),
+    radial-gradient(48rem 30rem at 90% 4%, rgba(255, 107, 53, 0.18), transparent 58%),
+    radial-gradient(40rem 24rem at 50% 100%, rgba(124, 77, 255, 0.12), transparent 66%),
+    var(--color-bg-deepest);
   background-attachment: fixed;
   color: var(--color-text-primary);
   font-family: var(--font-sans);
@@ -52,108 +66,130 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 22px 22px;
-  opacity: 0.035;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.02;
   mix-blend-mode: overlay;
 }
 
-/* Gradient text utility */
 .gradient-text {
-  background: linear-gradient(135deg, var(--color-accent-violet), var(--color-accent-pink), var(--color-accent-amber));
+  background: linear-gradient(135deg, var(--color-accent-cyan), var(--color-accent-info));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Glass card */
 .glass-card {
   position: relative;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.09),
-    rgba(255, 255, 255, 0.03)
-  );
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.30);
-}
-
-.glass-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(
-    600px circle at 20% 10%,
-    rgba(255, 255, 255, 0.12),
-    transparent 45%
-  );
-  opacity: 0.7;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.2),
+    0 14px 40px rgba(0, 0, 0, 0.35);
 }
 
 .glass-card > * {
   position: relative;
 }
 
-/* Glow effect */
+.glow-cyan {
+  box-shadow: 0 0 24px rgba(0, 212, 255, 0.3), 0 0 80px rgba(0, 212, 255, 0.14);
+}
+
+.glow-orange {
+  box-shadow: 0 0 24px rgba(255, 107, 53, 0.3), 0 0 80px rgba(255, 107, 53, 0.14);
+}
+
+/* Backwards compatibility utilities */
 .glow-violet {
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3), 0 0 60px rgba(124, 58, 237, 0.1);
+  box-shadow: 0 0 20px rgba(124, 77, 255, 0.32), 0 0 60px rgba(124, 77, 255, 0.12);
 }
 
 .glow-emerald {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), 0 0 60px rgba(16, 185, 129, 0.1);
+  box-shadow: 0 0 20px rgba(0, 230, 118, 0.3), 0 0 60px rgba(0, 230, 118, 0.12);
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-primary);
+  background: var(--color-bg-deepest);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-light);
+  background: rgba(255, 255, 255, 0.22);
 }
 
-/* Animations */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.06) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
 
 @keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes spring-pop {
+  0% {
+    transform: scale(0.88);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
+.animate-spring-pop {
+  animation: spring-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 :where(a, button, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid #9f7aea;
+  outline: 2px solid var(--color-accent-cyan);
   outline-offset: 2px;
 }
 

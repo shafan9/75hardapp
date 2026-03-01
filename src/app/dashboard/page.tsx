@@ -1,40 +1,65 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { DailyChecklist } from "@/components/checklist/daily-checklist";
-import { GroupGrid } from "@/components/dashboard/group-grid";
-import { InviteCard } from "@/components/dashboard/invite-card";
+import { TaskItem } from "@/components/checklist/task-item";
 import { ProgressRing } from "@/components/ui/progress-ring";
-import { DEFAULT_TASK_KEYS, TOTAL_DAYS } from "@/lib/constants";
+import { useToast } from "@/components/ui/toast-provider";
+import { TOTAL_DAYS } from "@/lib/constants";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { useChecklist } from "@/lib/hooks/use-checklist";
 import { useGroup } from "@/lib/hooks/use-group";
-import { useMemberStatus } from "@/lib/hooks/use-member-status";
-import {
-  getDayLabel,
-  getMotivationalQuoteForDay,
-  getProgressPercent,
-  getStreakMessage,
-} from "@/lib/utils";
+import { springs } from "@/lib/animations";
+import { getMotivationalQuoteForDay, getProgressPercent, getStreakMessage } from "@/lib/utils";
 
-const DASHBOARD_TABS = [
-  { href: "/dashboard", label: "Today", icon: "◉" },
-  { href: "/dashboard/group", label: "Squad", icon: "◎" },
-  { href: "/dashboard/feed", label: "Feed", icon: "◌" },
-  { href: "/dashboard/history", label: "History", icon: "◍" },
-  { href: "/dashboard/profile", label: "Profile", icon: "◐" },
-] as const;
+type HistoryTask = {
+  key: string;
+  label: string;
+  description: string;
+  emoji: string;
+  optional: boolean;
+  completed: boolean;
+  note: string | null;
+};
+
+type HistoryPayload = {
+  day: number;
+  date: string;
+  isToday: boolean;
+  currentSquadDay: number;
+  squadToday: string;
+  squadTimezone: string;
+  tasks: HistoryTask[];
+  error?: string;
+};
+
+type DayStatus = "complete" | "partial" | "empty";
+
+function getRequiredStats(tasks: HistoryTask[]) {
+  const required = tasks.filter((task) => !task.optional);
+  const done = required.filter((task) => task.completed).length;
+  return { done, total: required.length };
+}
+
+function getStatus(tasks: HistoryTask[]): DayStatus {
+  const { done, total } = getRequiredStats(tasks);
+  if (total === 0 || done === 0) return "empty";
+  if (done >= total) return "complete";
+  return "partial";
+}
 
 export default function DashboardPage() {
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
+  const toast = useToast();
+
   const authReady = !authLoading;
   const authEnabled = authReady && Boolean(user);
+  const timezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
 
-  const { group, loading: groupLoading, createGroup, joinGroup } = useGroup({
-    enabled: authEnabled,
-  });
+  const { group, loading: groupLoading } = useGroup({ enabled: authEnabled });
+
   const {
     todayCompleted,
     customTasks,
@@ -45,74 +70,177 @@ export default function DashboardPage() {
     removeCustomTask,
     isAllDone,
     currentDay,
-  } = useChecklist(group?.id, {
-    enabled: authEnabled,
-  });
-  const { memberStatuses, loading: statusLoading } = useMemberStatus(group?.id, {
-    enabled: authEnabled && Boolean(group?.id),
-  });
+    refreshChecklist,
+  } = useChecklist(group?.id, { enabled: authEnabled });
 
-  const [groupName, setGroupName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [creatingGroup, setCreatingGroup] = useState(false);
-  const [joiningGroup, setJoiningGroup] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [dayData, setDayData] = useState<Record<number, HistoryPayload>>({});
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyMutating, setHistoryMutating] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const loading = authLoading || (authEnabled && (groupLoading || checklistLoading));
 
   const dayNumber = Math.min(Math.max(currentDay || 1, 1), TOTAL_DAYS);
-  const progressPercent = getProgressPercent(currentDay, TOTAL_DAYS);
-  const streakMessage = getStreakMessage(currentDay);
-  const quoteOfTheDay = getMotivationalQuoteForDay(currentDay || 1);
 
-  const requiredCompletedCount = useMemo(
-    () => DEFAULT_TASK_KEYS.filter((key) => todayCompleted.includes(key)).length,
-    [todayCompleted]
+  useEffect(() => {
+    setSelectedDay((prev) => {
+      if (!prev) return dayNumber;
+      return prev > dayNumber ? dayNumber : prev;
+    });
+  }, [dayNumber]);
+
+  const fetchDay = useCallback(
+    async (day: number) => {
+      if (!group?.id || !user?.id) return null;
+
+      const params = new URLSearchParams({
+        groupId: group.id,
+        userId: user.id,
+        day: String(day),
+      });
+
+      const response = await fetch(`/api/group/member-day?${params.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "X-Timezone": timezone },
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as HistoryPayload;
+      if (!response.ok) {
+        throw new Error(payload.error || `Could not load day ${day}.`);
+      }
+
+      return payload;
+    },
+    [group?.id, timezone, user?.id]
   );
 
-  const finishedToday = useMemo(
-    () =>
-      memberStatuses.filter((member) =>
-        DEFAULT_TASK_KEYS.every((key) => member.completedTasks.includes(key))
-      ).length,
-    [memberStatuses]
+  const refreshRecentDays = useCallback(async () => {
+    if (!group?.id || !user?.id) return;
+
+    const start = Math.max(dayNumber - 6, 1);
+    const days = Array.from({ length: dayNumber - start + 1 }, (_, index) => start + index);
+
+    setHistoryLoading(true);
+    try {
+      const results = await Promise.all(days.map((day) => fetchDay(day)));
+      const next: Record<number, HistoryPayload> = {};
+
+      for (const payload of results) {
+        if (!payload) continue;
+        next[payload.day] = payload;
+      }
+
+      setDayData((prev) => ({ ...prev, ...next }));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [dayNumber, fetchDay, group?.id, user?.id]);
+
+  useEffect(() => {
+    if (!group?.id || !user?.id || !dayNumber) return;
+    void refreshRecentDays();
+  }, [dayNumber, group?.id, refreshRecentDays, user?.id]);
+
+  const currentSelectedDay = selectedDay ?? dayNumber;
+  const isViewingToday = currentSelectedDay === dayNumber;
+  const selectedHistory = dayData[currentSelectedDay];
+
+  const selectedTasks = useMemo(
+    () => (isViewingToday ? null : selectedHistory?.tasks ?? []),
+    [isViewingToday, selectedHistory]
   );
 
-  async function handleCreateGroup() {
-    const name = groupName.trim();
-    if (!name || creatingGroup) return;
+  const todayRequiredStats = useMemo(() => {
+    const requiredKeys = ["workout_outdoor", "workout_indoor", "diet", "water", "reading"];
+    const done = requiredKeys.filter((key) => todayCompleted.includes(key)).length;
+    return { done, total: requiredKeys.length };
+  }, [todayCompleted]);
 
-    setCreatingGroup(true);
-    const created = await createGroup(name);
-    if (created) {
-      setGroupName("");
-    }
-    setCreatingGroup(false);
-  }
+  const selectedRequiredStats = useMemo(() => {
+    if (isViewingToday) return todayRequiredStats;
+    return getRequiredStats(selectedTasks ?? []);
+  }, [isViewingToday, selectedTasks, todayRequiredStats]);
 
-  async function handleJoinGroup() {
-    const code = inviteCode.trim();
-    if (!code || joiningGroup) return;
+  const displayDay = isViewingToday ? dayNumber : currentSelectedDay;
+  const progressPercent = getProgressPercent(displayDay, TOTAL_DAYS);
+  const quoteOfTheDay = getMotivationalQuoteForDay(displayDay);
+  const streakMessage = getStreakMessage(dayNumber);
 
-    setJoiningGroup(true);
-    const joined = await joinGroup(code);
-    if (joined) {
-      setInviteCode("");
-    }
-    setJoiningGroup(false);
-  }
+  const dayPickerItems = useMemo(() => {
+    const start = Math.max(dayNumber - 6, 1);
+    return Array.from({ length: dayNumber - start + 1 }, (_, index) => {
+      const day = start + index;
+      const payload = dayData[day];
+      const status = payload ? getStatus(payload.tasks) : (day === dayNumber ? (isAllDone ? "complete" : "partial") : "empty");
 
-  async function handleSignOut() {
-    setSigningOut(true);
-    await signOut();
-    setSigningOut(false);
-  }
+      return {
+        day,
+        date: payload?.date,
+        status,
+        isToday: day === dayNumber,
+      };
+    });
+  }, [dayData, dayNumber, isAllDone]);
+
+  const mutatePastDayTask = useCallback(
+    async (taskKey: string, note?: string) => {
+      if (!group?.id || !selectedHistory || isViewingToday) return;
+
+      setHistoryMutating(true);
+      setHistoryError(null);
+
+      const action = typeof note === "string" ? "addNote" : "toggleTask";
+      const body = {
+        action,
+        groupId: group.id,
+        taskKey,
+        targetDate: selectedHistory.date,
+        ...(typeof note === "string" ? { note } : {}),
+      };
+
+      try {
+        const response = await fetch("/api/checklist", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Timezone": timezone,
+          },
+          body: JSON.stringify(body),
+        });
+
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not update this day.");
+        }
+
+        const refreshed = await fetchDay(currentSelectedDay);
+        if (refreshed) {
+          setDayData((prev) => ({ ...prev, [refreshed.day]: refreshed }));
+        }
+
+        await refreshChecklist();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not update this day.";
+        setHistoryError(message);
+        toast.error(message);
+      } finally {
+        setHistoryMutating(false);
+      }
+    },
+    [currentSelectedDay, fetchDay, group?.id, isViewingToday, refreshChecklist, selectedHistory, timezone, toast]
+  );
 
   if (loading) {
     return (
       <div className="flex min-h-[60dvh] items-center justify-center">
         <motion.div
-          className="h-9 w-9 rounded-full border-2 border-accent-violet/30 border-t-accent-violet"
+          className="h-10 w-10 rounded-full border-2 border-accent-cyan/30 border-t-accent-cyan"
           animate={{ rotate: 360 }}
           transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
           role="status"
@@ -126,13 +254,13 @@ export default function DashboardPage() {
     return (
       <div className="mx-auto mt-10 max-w-xl rounded-[24px] border border-white/10 bg-white/[0.04] p-6 text-center backdrop-blur-2xl">
         <p className="text-3xl" aria-hidden="true">🔐</p>
-        <h1 className="mt-3 text-xl font-black text-white">Sign in required</h1>
-        <p className="mt-2 text-sm text-white/70">
-          Sign in to open your squad dashboard. You will stay signed in on this browser until you sign out.
+        <h1 className="mt-3 text-xl font-black text-text-primary">Sign in required</h1>
+        <p className="mt-2 text-sm text-text-secondary">
+          Sign in to open your dashboard and complete daily tasks.
         </p>
         <Link
           href="/"
-          className="mt-5 inline-flex rounded-xl border border-white/10 bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_25px_rgba(124,58,237,0.25)]"
+          className="mt-5 inline-flex rounded-xl border border-white/10 bg-gradient-to-r from-accent-cyan to-accent-info px-4 py-2.5 text-sm font-semibold text-white"
         >
           Go to sign in
         </Link>
@@ -140,337 +268,175 @@ export default function DashboardPage() {
     );
   }
 
+  const flameScale = Math.min(1 + displayDay / 180, 1.35);
+
   return (
-    <div
-      className="relative min-h-dvh overflow-hidden pb-28 pt-2"
-      style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)" }}
-    >
-      <div className="pointer-events-none fixed inset-0" aria-hidden="true">
-        <div className="absolute inset-0 bg-[radial-gradient(80rem_42rem_at_15%_-10%,rgba(66,153,225,0.12),transparent_65%),radial-gradient(56rem_34rem_at_86%_0%,rgba(236,72,153,0.14),transparent_62%),radial-gradient(48rem_28rem_at_50%_100%,rgba(251,191,36,0.08),transparent_70%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.05]" />
-      </div>
+    <div className="relative mx-auto w-full max-w-3xl space-y-5 pb-6">
+      <motion.section
+        className="glass-card rounded-[30px] p-5 sm:p-6"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={springs.smooth}
+      >
+        <div className="flex flex-col items-center text-center">
+          <ProgressRing
+            variant="hero"
+            progress={progressPercent}
+            label={String(displayDay)}
+            sublabel="DAY"
+          />
 
-      <div className="relative z-10 mx-auto w-full max-w-6xl space-y-5 px-3 sm:px-4">
-        <motion.section
-          className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-4 backdrop-blur-2xl sm:p-5"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="pointer-events-none absolute -left-12 top-0 h-36 w-36 rounded-full bg-cyan-400/10 blur-3xl" />
-          <div className="pointer-events-none absolute right-0 top-0 h-40 w-40 rounded-full bg-fuchsia-500/10 blur-3xl" />
-
-          <div className="relative flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold tracking-[0.2em] text-white/45">75 SQUAD</p>
-              <h1 className="mt-1 text-3xl font-black tracking-tight text-white sm:text-4xl [text-wrap:balance]">
-                <span className="bg-gradient-to-r from-cyan-200 via-violet-200 to-pink-200 bg-clip-text text-transparent">
-                  Today
-                </span>
-              </h1>
-              <p className="mt-1 text-sm text-white/70">
-                {profile?.display_name ? `Hey ${profile.display_name}, ` : ""}
-                {streakMessage}
-              </p>
-              <p className="mt-1 text-[11px] text-white/50">
-                Stay locked in: this browser stays signed in until you sign out.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/dashboard/history"
-                className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/80 transition-colors hover:bg-white/[0.07] hover:text-white"
-              >
-                Backfill / History
-              </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSignOut();
-                }}
-                disabled={signingOut}
-                className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/80 transition-colors hover:bg-white/[0.07] hover:text-white disabled:opacity-60"
-              >
-                {signingOut ? "Signing out…" : "Sign out"}
-              </button>
-            </div>
-          </div>
-        </motion.section>
-
-        <motion.section
-          className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.04 }}
-        >
-          <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-4 backdrop-blur-2xl sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-2">
-                  <ProgressRing
-                    progress={progressPercent}
-                    size={104}
-                    strokeWidth={8}
-                    label={String(dayNumber)}
-                    sublabel="Day"
-                  />
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold tracking-[0.16em] text-white/45">TODAY</p>
-                  <h2 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl [text-wrap:balance]">
-                    {getDayLabel(currentDay, TOTAL_DAYS)}
-                  </h2>
-                  <p className="mt-1 text-sm text-white/65">
-                    Required tasks done today: {requiredCompletedCount}/{DEFAULT_TASK_KEYS.length}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[220px]">
-                <div className="rounded-2xl border border-white/10 bg-black/15 p-3">
-                  <p className="text-[10px] font-semibold tracking-[0.14em] text-white/45">PROGRESS</p>
-                  <p className="mt-1 text-lg font-black text-white tabular-nums">{progressPercent}%</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/15 p-3">
-                  <p className="text-[10px] font-semibold tracking-[0.14em] text-white/45">CUSTOM TASKS</p>
-                  <p className="mt-1 text-lg font-black text-white tabular-nums">{customTasks.length}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold tracking-[0.16em] text-white/45">QUOTE OF THE DAY</p>
-                  <p className="mt-1 text-sm leading-relaxed text-white/90">
-                    &ldquo;{quoteOfTheDay.text}&rdquo;
-                  </p>
-                  <p className="mt-1 text-[11px] text-white/50">{quoteOfTheDay.author} · same quote for the squad</p>
-                </div>
-                {isAllDone ? (
-                  <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-200">
-                    All required done
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,18,34,0.88),rgba(8,10,18,0.92))] p-4 backdrop-blur-2xl sm:p-5">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-[11px] font-semibold tracking-[0.16em] text-white/45">QUICK OPEN</p>
-                <h2 className="mt-1 text-xl font-black tracking-tight text-white">Your launch tabs</h2>
-              </div>
-              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold text-white/60">
-                5 tabs
-              </span>
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-              {DASHBOARD_TABS.map((tab) => (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className={`flex items-center justify-between rounded-2xl border px-3 py-3 text-sm transition-colors ${
-                    tab.href === "/dashboard"
-                      ? "border-white/15 bg-white/[0.06] text-white"
-                      : "border-white/10 bg-white/[0.03] text-white/80 hover:bg-white/[0.06] hover:text-white"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span aria-hidden="true">{tab.icon}</span>
-                    <span className="font-semibold">{tab.label}</span>
-                  </span>
-                  <span className="text-white/35" aria-hidden="true">›</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </motion.section>
-
-        <motion.section
-          className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4 backdrop-blur-2xl sm:p-5"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
-        >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-white">Checklist</h2>
-              <p className="text-xs text-white/55">
-                Tap to complete. Use History to backfill past days if you forgot to log something.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/dashboard/history"
-                className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.07] hover:text-white"
-              >
-                Edit past days
-              </Link>
-              {isAllDone ? (
-                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200">
-                  Today complete
-                </span>
-              ) : null}
-            </div>
-          </div>
-
-          {group ? (
-            <DailyChecklist
-              completions={todayCompleted}
-              customTasks={customTasks}
-              onToggleTask={toggleTask}
-              onAddNote={addNote}
-              onAddCustomTask={addCustomTask}
-              onRemoveCustomTask={removeCustomTask}
-              isAllDone={isAllDone}
-            />
-          ) : (
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4 text-sm text-white/70">
-              Create or join a squad below to unlock your daily checklist and tracking.
-            </div>
-          )}
-        </motion.section>
-
-        <motion.section
-          className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4 backdrop-blur-2xl sm:p-5"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-        >
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-white">Squad</h2>
-              {group ? (
-                <p className="text-xs text-white/55">
-                  {memberStatuses.length} members, {finishedToday} finished all required tasks today
-                </p>
-              ) : (
-                <p className="text-xs text-white/55">Create a squad or join with an invite code to start together.</p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <Link href="/dashboard/feed" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-white/80 transition-colors hover:bg-white/[0.07] hover:text-white">
-                Open Feed
-              </Link>
-              <Link href="/dashboard/group" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-white/80 transition-colors hover:bg-white/[0.07] hover:text-white">
-                Squad tab
-              </Link>
-            </div>
-          </div>
-
-          {!group && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-[22px] border border-white/10 bg-black/15 p-4">
-                <p className="text-xs font-semibold tracking-[0.16em] text-white/45">CREATE SQUAD</p>
-                <h3 className="mt-1 text-lg font-black text-white">Start your 75 Hard group</h3>
-                <p className="mt-1 text-sm text-white/60">Create a private squad, then send the invite link to your people.</p>
-                <label htmlFor="squad-name" className="sr-only">Squad name</label>
-                <input
-                  id="squad-name"
-                  type="text"
-                  name="squad_name"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={groupName}
-                  onChange={(event) => setGroupName(event.target.value)}
-                  placeholder="Team name"
-                  maxLength={48}
-                  className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-white/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleCreateGroup();
-                  }}
-                  disabled={!groupName.trim() || creatingGroup}
-                  className="mt-3 w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-3 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                >
-                  {creatingGroup ? "Creating…" : "Create Squad"}
-                </button>
-              </div>
-
-              <div className="rounded-[22px] border border-white/10 bg-black/15 p-4">
-                <p className="text-xs font-semibold tracking-[0.16em] text-white/45">JOIN SQUAD</p>
-                <h3 className="mt-1 text-lg font-black text-white">Join with invite code</h3>
-                <p className="mt-1 text-sm text-white/60">Paste your code and get straight into the group.</p>
-                <label htmlFor="invite-code" className="sr-only">Invite code</label>
-                <input
-                  id="invite-code"
-                  type="text"
-                  name="invite_code"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={inviteCode}
-                  onChange={(event) => setInviteCode(event.target.value)}
-                  placeholder="Invite code"
-                  maxLength={32}
-                  className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-white/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleJoinGroup();
-                  }}
-                  disabled={!inviteCode.trim() || joiningGroup}
-                  className="mt-3 w-full rounded-xl border border-white/12 bg-white/[0.03] px-3 py-2.5 text-sm font-semibold text-white/85 transition-colors hover:bg-white/[0.07] hover:text-white disabled:opacity-60"
-                >
-                  {joiningGroup ? "Joining…" : "Join Squad"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {group && (
-            <div className="space-y-4">
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.02] p-3">
-                <InviteCard inviteCode={group.invite_code} groupName={group.name} />
-              </div>
-
-              <div className="rounded-[22px] border border-white/10 bg-white/[0.02] p-4">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold tracking-[0.16em] text-white/45">MEMBERS</p>
-                  <Link href={`/dashboard/member/${user.id}`} className="text-xs text-white/60 hover:text-white">
-                    Open my member view
-                  </Link>
-                </div>
-                {statusLoading ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/15 p-4 text-sm text-white/70">
-                    Loading member progress…
-                  </div>
-                ) : (
-                  <GroupGrid members={memberStatuses} totalRequired={DEFAULT_TASK_KEYS.length} />
-                )}
-              </div>
-            </div>
-          )}
-        </motion.section>
-      </div>
-
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(6,8,14,0.72)] px-3 pt-2 backdrop-blur-3xl" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }} aria-label="Primary dashboard tabs">
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-5 gap-1">
-          {DASHBOARD_TABS.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`rounded-xl px-1 py-1.5 text-center transition-colors ${
-                tab.href === "/dashboard"
-                  ? "bg-white/[0.08] ring-1 ring-white/10"
-                  : "hover:bg-white/[0.04]"
-              }`}
-              aria-current={tab.href === "/dashboard" ? "page" : undefined}
+          <h1 className="mt-5 text-3xl font-black tracking-tight text-text-primary sm:text-4xl">
+            Day {displayDay} of {TOTAL_DAYS}
+          </h1>
+          <p className="mt-1 flex items-center gap-2 text-sm text-text-secondary">
+            <motion.span
+              animate={{ scale: [flameScale, flameScale * 1.07, flameScale] }}
+              transition={{ duration: 1.3, repeat: Infinity }}
+              className="inline-block"
+              aria-hidden="true"
             >
-              <div className={`text-base leading-none ${tab.href === "/dashboard" ? "text-white" : "text-white/45"}`} aria-hidden="true">
-                {tab.icon}
-              </div>
-              <div className={`mt-1 text-[10px] ${tab.href === "/dashboard" ? "font-semibold text-white" : "text-white/45"}`}>
-                {tab.label}
-              </div>
-            </Link>
-          ))}
+              🔥
+            </motion.span>
+            {isViewingToday ? streakMessage : `Viewing day ${displayDay}`}
+          </p>
+          <p className="mt-1 text-xs text-text-muted">
+            {selectedRequiredStats.done}/{selectedRequiredStats.total} required tasks done
+          </p>
         </div>
-      </nav>
+
+        <div className="mt-5 -mx-1 overflow-x-auto pb-1">
+          <div className="flex min-w-max items-center gap-2 px-1">
+            {dayPickerItems.map((item) => {
+              const isActive = item.day === currentSelectedDay;
+              const statusClass =
+                item.status === "complete"
+                  ? "bg-accent-success"
+                  : item.status === "partial"
+                    ? "bg-accent-orange"
+                    : "bg-white/20";
+
+              return (
+                <button
+                  key={item.day}
+                  type="button"
+                  onClick={async () => {
+                    setSelectedDay(item.day);
+                    if (!dayData[item.day]) {
+                      try {
+                        const payload = await fetchDay(item.day);
+                        if (payload) {
+                          setDayData((prev) => ({ ...prev, [payload.day]: payload }));
+                        }
+                      } catch {
+                        toast.error(`Could not load Day ${item.day}.`);
+                      }
+                    }
+                  }}
+                  className={
+                    `rounded-2xl border px-3 py-2 text-left transition-colors ` +
+                    (isActive
+                      ? "border-accent-cyan bg-accent-cyan/12"
+                      : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]")
+                  }
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+                    {item.isToday ? "Today" : `Day ${item.day}`}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={`inline-block h-2 w-2 rounded-full ${statusClass}`} aria-hidden="true" />
+                    <span className="text-xs font-semibold text-text-secondary">
+                      {item.date ? item.date.slice(5) : `D${item.day}`}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </motion.section>
+
+      <motion.section
+        className="glass-card rounded-[30px] p-5 sm:p-6"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springs.smooth, delay: 0.03 }}
+      >
+        <p className="text-4xl leading-none text-accent-cyan/25" aria-hidden="true">&ldquo;</p>
+        <p className="-mt-2 text-lg italic leading-relaxed text-text-primary">{quoteOfTheDay.text}</p>
+        <p className="mt-2 text-sm text-text-secondary">{quoteOfTheDay.author}</p>
+      </motion.section>
+
+      <motion.section
+        className="glass-card rounded-[30px] p-5 sm:p-6"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springs.smooth, delay: 0.06 }}
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-xl font-black text-text-primary">Today&apos;s Tasks</h2>
+            <p className="text-xs text-text-muted">
+              {isViewingToday
+                ? "Complete your checklist and trigger celebration."
+                : `Editing Day ${currentSelectedDay} (${selectedHistory?.date ?? ""})`}
+            </p>
+          </div>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-text-secondary">
+            {selectedRequiredStats.done}/{selectedRequiredStats.total}
+          </span>
+        </div>
+
+        {!group ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-text-secondary">
+            Join or create a squad in the <Link href="/dashboard/group" className="text-accent-cyan">Squad tab</Link> to unlock your checklist.
+          </div>
+        ) : isViewingToday ? (
+          <DailyChecklist
+            completions={todayCompleted}
+            customTasks={customTasks}
+            onToggleTask={toggleTask}
+            onAddNote={addNote}
+            onAddCustomTask={addCustomTask}
+            onRemoveCustomTask={removeCustomTask}
+            isAllDone={isAllDone}
+            currentDay={dayNumber}
+          />
+        ) : historyLoading && !selectedHistory ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-text-secondary">
+            Loading day {currentSelectedDay}...
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {historyError ? <p className="text-sm text-accent-danger">{historyError}</p> : null}
+            {(selectedTasks ?? []).map((task) => (
+              <TaskItem
+                key={task.key}
+                taskKey={task.key}
+                emoji={task.emoji}
+                label={task.label}
+                description={task.description}
+                isCompleted={task.completed}
+                isOptional={task.optional}
+                note={task.note ?? ""}
+                onToggle={() => {
+                  void mutatePastDayTask(task.key);
+                }}
+                onAddNote={(note) => {
+                  void mutatePastDayTask(task.key, note);
+                }}
+              />
+            ))}
+            {historyMutating ? (
+              <p className="text-xs text-text-muted">Saving updates...</p>
+            ) : null}
+          </div>
+        )}
+      </motion.section>
+
+      <p className="px-1 text-center text-xs text-text-muted">
+        Hi {profile?.display_name || "there"}. Squad setup and invites live in the Squad tab.
+      </p>
     </div>
   );
 }

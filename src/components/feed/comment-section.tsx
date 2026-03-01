@@ -49,7 +49,7 @@ export function CommentSection({
                   className="flex gap-2.5 rounded-xl bg-bg-surface/50 p-3"
                 >
                   {/* Avatar */}
-                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-blue to-accent-violet text-[10px] font-bold text-white">
+                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-cyan to-accent-info text-[10px] font-bold text-white">
                     {profile?.avatar_url ? (
                       <Image
                         src={profile.avatar_url}
@@ -108,13 +108,13 @@ export function CommentSection({
           onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSubmit()}
           placeholder="Write a comment…"
           disabled={loading}
-          className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary disabled:opacity-50"
+          className="flex-1 rounded-xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-cyan focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary disabled:opacity-50"
         />
         <button
           onClick={handleSubmit}
           aria-label="Send comment"
           disabled={!input.trim() || loading}
-          className="flex items-center justify-center rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
+          className="flex items-center justify-center rounded-xl bg-gradient-to-r from-accent-cyan to-accent-info px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
         >
           {loading ? (
             <svg

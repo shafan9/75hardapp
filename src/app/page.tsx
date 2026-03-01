@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { DEFAULT_TASKS } from "@/lib/constants";
 import { EmailAuthForm } from "@/components/auth/email-auth-form";
+import { DEFAULT_TASKS } from "@/lib/constants";
+import { springs } from "@/lib/animations";
 
 export default function LandingPage() {
   return (
@@ -12,29 +13,36 @@ export default function LandingPage() {
       style={{ paddingTop: "calc(env(safe-area-inset-top) + 1rem)" }}
     >
       <div className="pointer-events-none fixed inset-0" aria-hidden="true">
-        <div className="absolute left-[-120px] top-[-120px] h-80 w-80 rounded-full bg-accent-violet/20 blur-[120px]" />
-        <div className="absolute bottom-[-140px] right-[-100px] h-96 w-96 rounded-full bg-accent-pink/15 blur-[140px]" />
+        <div className="absolute left-[-120px] top-[-110px] h-80 w-80 rounded-full bg-accent-cyan/20 blur-[130px]" />
+        <div className="absolute bottom-[-140px] right-[-100px] h-96 w-96 rounded-full bg-accent-orange/18 blur-[140px]" />
       </div>
 
       <div className="relative z-10 mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <motion.section
-          className="glass-card space-y-5 p-5 sm:p-7"
+          className="glass-card space-y-6 p-6 sm:p-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={springs.smooth}
         >
           <div>
-            <h1 className="gradient-text text-4xl font-black leading-tight sm:text-5xl">75 Squad</h1>
-            <p className="mt-2 max-w-xl text-sm text-text-secondary sm:text-base">
-              Simple accountability for 75 Hard. Track your day, share progress with your squad,
-              and keep momentum without app complexity.
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">75 Hard Tracker</p>
+            <h1 className="mt-2 text-5xl font-black leading-[0.95] tracking-tight sm:text-6xl">
+              <span className="gradient-text">75 Squad</span>
+            </h1>
+            <p className="mt-3 max-w-xl text-sm text-text-secondary sm:text-base">
+              A bold, focused way to finish 75 Hard with accountability.
+              Track each day, celebrate streaks, and stay connected with your squad.
             </p>
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Daily checklist</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Daily checklist preview</p>
             <div className="grid gap-2 sm:grid-cols-2">
               {DEFAULT_TASKS.map((task) => (
-                <div key={task.key} className="rounded-xl border border-border bg-bg-surface px-3 py-3">
+                <div
+                  key={task.key}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3"
+                >
                   <p className="text-sm font-semibold text-text-primary">
                     <span className="mr-2" aria-hidden="true">{task.emoji}</span>
                     {task.label}
@@ -54,7 +62,7 @@ export default function LandingPage() {
           <EmailAuthForm
             nextPath="/dashboard"
             title="Welcome back"
-            description="Sign in to continue. New accounts are created from an invite link."
+            description="Sign in to continue. New accounts are created from invite links."
             allowSignup={false}
           />
 

@@ -4,68 +4,59 @@ import { useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { DEFAULT_TASKS, REACTION_EMOJIS } from "@/lib/constants";
-import { TaskCompletion, Profile, FeedReaction } from "@/lib/types";
+import type { FeedReaction, Profile, TaskCompletion } from "@/lib/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 interface FeedCardProps {
   completion: TaskCompletion & {
-    profiles: Profile;
+    profiles?: Profile;
     reactions: FeedReaction[];
-    reactionCount: number;
-    userReacted: boolean;
+    userReaction?: FeedReaction | null;
+    reactionCounts?: Record<string, number>;
+    commentCount?: number;
   };
   onReact: (emoji: string) => void;
   onComment: () => void;
   commentCount: number;
 }
 
-export function FeedCard({
-  completion,
-  onReact,
-  onComment,
-  commentCount,
-}: FeedCardProps) {
+export function FeedCard({ completion, onReact, onComment, commentCount }: FeedCardProps) {
   const [tappedEmoji, setTappedEmoji] = useState<string | null>(null);
 
-  // Look up the task info from defaults, or treat as custom
-  const defaultTask = DEFAULT_TASKS.find((t) => t.key === completion.task_key);
+  const defaultTask = DEFAULT_TASKS.find((task) => task.key === completion.task_key);
   const taskEmoji = defaultTask?.emoji ?? "✨";
   const taskLabel = defaultTask?.label ?? completion.task_key.replace("custom_", "");
 
   const profile = completion.profiles;
-  const avatarFallback = (profile.display_name || "?")[0].toUpperCase();
+  const avatarUrl = profile?.avatar_url ?? null;
+  const avatarFallback = (profile?.display_name || "?")[0]?.toUpperCase() || "?";
+
+  const reactionCounts = completion.reactions.reduce<Record<string, number>>((acc, reaction) => {
+    acc[reaction.emoji] = (acc[reaction.emoji] || 0) + 1;
+    return acc;
+  }, {});
 
   const handleReact = (emoji: string) => {
     setTappedEmoji(emoji);
     onReact(emoji);
-    setTimeout(() => setTappedEmoji(null), 300);
+    window.setTimeout(() => setTappedEmoji(null), 280);
   };
 
-  // Count reactions per emoji
-  const reactionCounts = completion.reactions.reduce<Record<string, number>>(
-    (acc, r) => {
-      acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-      return acc;
-    },
-    {}
-  );
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 24 }}
-      className="glass-card p-4 space-y-3"
+      className="glass-card space-y-4 p-5"
     >
-      {/* Header: avatar + name + timestamp */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-violet to-accent-pink text-sm font-bold text-white">
-          {profile.avatar_url ? (
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-white/15 bg-gradient-to-br from-accent-cyan/75 to-accent-info/65 text-sm font-bold text-white">
+          {avatarUrl ? (
             <Image
-              src={profile.avatar_url}
-              alt={profile.display_name || "User"}
-              width={40}
-              height={40}
+              src={avatarUrl}
+              alt={profile?.display_name || "User"}
+              width={44}
+              height={44}
               loading="lazy"
               className="h-full w-full rounded-full object-cover"
             />
@@ -73,72 +64,61 @@ export function FeedCard({
             avatarFallback
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-text-primary truncate">
-            {profile.display_name || "Anonymous"}
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-text-primary">
+            {profile?.display_name || "Anonymous"}
           </p>
-          <p className="text-xs text-text-muted">
-            {formatRelativeTime(completion.completed_at)}
-          </p>
+          <p className="text-xs text-text-muted">{formatRelativeTime(completion.completed_at)}</p>
         </div>
-        <div className="flex-shrink-0 text-2xl">{taskEmoji}</div>
+
+        <div className="rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-1 text-xs text-text-secondary">
+          {taskEmoji} {taskLabel}
+        </div>
       </div>
 
-      {/* Task completed */}
-      <div className="rounded-xl bg-bg-surface/50 px-3 py-2">
-        <p className="text-sm text-text-secondary">
-          Completed{" "}
-          <span className="font-semibold text-text-primary">{taskLabel}</span>{" "}
-          {taskEmoji}
-        </p>
-      </div>
-
-      {/* Note if exists */}
-      {completion.note && (
-        <div className="rounded-xl border-l-2 border-accent-violet bg-accent-violet/5 px-3 py-2">
-          <p className="text-sm text-text-secondary italic">
-            &ldquo;{completion.note}&rdquo;
-          </p>
+      {completion.note ? (
+        <div className="rounded-2xl border border-accent-cyan/25 bg-accent-cyan/8 px-4 py-3">
+          <p className="text-sm italic text-text-secondary">&ldquo;{completion.note}&rdquo;</p>
         </div>
-      )}
+      ) : null}
 
-      {/* Reactions bar */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         {REACTION_EMOJIS.map((emoji) => {
           const count = reactionCounts[emoji] || 0;
-          const hasCount = count > 0;
+          const active = count > 0;
+
           return (
             <motion.button
               key={emoji}
+              type="button"
               onClick={() => handleReact(emoji)}
               aria-label={`React with ${emoji}`}
-              whileTap={{ scale: 1.4 }}
+              whileTap={{ scale: 1.15 }}
               animate={
                 tappedEmoji === emoji
-                  ? { scale: [1, 1.4, 1] }
+                  ? { scale: [1, 1.25, 1] }
                   : { scale: 1 }
               }
-              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+              transition={{ type: "spring", stiffness: 350, damping: 14 }}
               className={cn(
-                "flex items-center gap-1 rounded-full px-2 py-1 text-sm transition-colors",
-                hasCount
-                  ? "bg-accent-violet/10 border border-accent-violet/20"
-                  : "bg-bg-surface hover:bg-bg-card-hover"
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm transition-colors",
+                active
+                  ? "border-accent-cyan/35 bg-accent-cyan/15"
+                  : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
               )}
             >
               <span>{emoji}</span>
-              {hasCount && (
-                <span className="text-xs text-text-secondary">{count}</span>
-              )}
+              {active ? <span className="text-xs text-text-secondary">{count}</span> : null}
             </motion.button>
           );
         })}
 
-        {/* Comment button */}
         <button
+          type="button"
           onClick={onComment}
           aria-label="Open comments"
-          className="ml-auto flex items-center gap-1.5 rounded-full bg-bg-surface px-3 py-1 text-sm text-text-muted hover:bg-bg-card-hover hover:text-text-secondary transition-colors"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-sm text-text-secondary transition-colors hover:bg-white/[0.1] hover:text-text-primary"
         >
           <svg
             width="14"
@@ -152,11 +132,9 @@ export function FeedCard({
           >
             <path d="M1 10.5V2.5a1 1 0 011-1h10a1 1 0 011 1v6a1 1 0 01-1 1H4l-3 3z" />
           </svg>
-          {commentCount > 0 && (
-            <span className="text-xs">{commentCount}</span>
-          )}
+          <span>{commentCount > 0 ? commentCount : "Comment"}</span>
         </button>
       </div>
-    </motion.div>
+    </motion.article>
   );
 }
