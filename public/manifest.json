@@ -4,8 +4,8 @@
   "description": "Crush 75 Hard Together with your squad",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#0B0F1A",
-  "theme_color": "#7C3AED",
+  "background_color": "#07070C",
+  "theme_color": "#07070C",
   "orientation": "portrait",
   "icons": [
     {

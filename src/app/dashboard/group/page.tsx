@@ -139,7 +139,7 @@ export default function GroupPage() {
               disabled={!groupName.trim() || creatingGroup}
               className="mt-3 w-full rounded-xl bg-gradient-to-r from-accent-cyan to-accent-info px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-55"
             >
-              {creatingGroup ? "Creating..." : "Create Squad"}
+              {creatingGroup ? "Creating…" : "Create Squad"}
             </button>
           </div>
 
@@ -166,7 +166,7 @@ export default function GroupPage() {
               disabled={!inviteCode.trim() || joiningGroup}
               className="mt-3 w-full rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-text-primary disabled:opacity-55"
             >
-              {joiningGroup ? "Joining..." : "Join Squad"}
+              {joiningGroup ? "Joining…" : "Join Squad"}
             </button>
           </div>
         </motion.section>
@@ -196,7 +196,7 @@ export default function GroupPage() {
 
             {statusLoading ? (
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-text-secondary">
-                Loading member progress...
+                Loading member progress…
               </div>
             ) : (
               <GroupGrid

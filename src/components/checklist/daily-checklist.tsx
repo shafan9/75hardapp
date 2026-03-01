@@ -183,7 +183,7 @@ export function DailyChecklist({
                     onKeyDown={(event) => {
                       if (event.key === "Enter") handleAddTask();
                     }}
-                    placeholder="Task name..."
+                    placeholder="Task name…"
                     className="flex-1 rounded-xl border border-white/10 bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
                     maxLength={40}
                   />

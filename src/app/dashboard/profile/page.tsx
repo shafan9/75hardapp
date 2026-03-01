@@ -493,7 +493,7 @@ export default function ProfilePage() {
                                         void handleAddCustomTask();
                                       }
                                     }}
-                                    placeholder="Task name..."
+                                    placeholder="Task name…"
                                     className="flex-1 rounded-xl border border-white/10 bg-bg-card px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
                                   />
                                   <button
@@ -615,7 +615,7 @@ export default function ProfilePage() {
                             disabled={signingOut}
                             className="rounded-xl border border-accent-danger/35 px-4 py-2 text-sm font-semibold text-accent-danger disabled:opacity-60"
                           >
-                            {signingOut ? "Signing out..." : "Sign out"}
+                            {signingOut ? "Signing out…" : "Sign out"}
                           </button>
                         </div>
                       ) : null}

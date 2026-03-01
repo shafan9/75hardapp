@@ -404,7 +404,7 @@ export default function DashboardPage() {
           />
         ) : historyLoading && !selectedHistory ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-text-secondary">
-            Loading day {currentSelectedDay}...
+            Loading day {currentSelectedDay}…
           </div>
         ) : (
           <div className="space-y-3">
@@ -428,7 +428,7 @@ export default function DashboardPage() {
               />
             ))}
             {historyMutating ? (
-              <p className="text-xs text-text-muted">Saving updates...</p>
+              <p className="text-xs text-text-muted">Saving updates…</p>
             ) : null}
           </div>
         )}
