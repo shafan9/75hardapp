@@ -109,7 +109,7 @@ export function DashboardTabBar() {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(7,7,12,0.85)] px-2 pt-2 backdrop-blur-3xl"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 18px)" }}
       aria-label="Primary dashboard tabs"
     >
       <div className="mx-auto grid w-full max-w-3xl grid-cols-4 gap-1.5">

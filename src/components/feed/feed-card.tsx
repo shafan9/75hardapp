@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { DEFAULT_TASKS, REACTION_EMOJIS } from "@/lib/constants";
 import type { FeedReaction, Profile, TaskCompletion } from "@/lib/types";
@@ -23,15 +22,33 @@ interface FeedCardProps {
 export function FeedCard({ completion, onReact, onComment, commentCount }: FeedCardProps) {
   const [tappedEmoji, setTappedEmoji] = useState<string | null>(null);
 
+  const getSafeAvatarUrl = (value: unknown): string | null => {
+    if (typeof value !== "string" || !value.trim()) return null;
+    const raw = value.trim();
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol !== "https:") return null;
+      if (
+        parsed.hostname === "lh3.googleusercontent.com" ||
+        parsed.hostname.endsWith(".supabase.co")
+      ) {
+        return raw;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const rawTaskKey = typeof completion.task_key === "string" ? completion.task_key : "";
   const defaultTask = DEFAULT_TASKS.find((task) => task.key === rawTaskKey);
   const taskEmoji = defaultTask?.emoji ?? "✨";
   const taskLabel =
     defaultTask?.label ??
-    (rawTaskKey ? rawTaskKey.replace(/^custom_/, "").replaceAll("_", " ") : "Task");
+    (rawTaskKey ? rawTaskKey.replace(/^custom_/, "").replace(/_/g, " ") : "Task");
 
   const profile = completion.profiles;
-  const avatarUrl = profile?.avatar_url ?? null;
+  const avatarUrl = getSafeAvatarUrl(profile?.avatar_url);
   const avatarFallback = (profile?.display_name || "?")[0]?.toUpperCase() || "?";
 
   const reactionCounts = completion.reactions.reduce<Record<string, number>>((acc, reaction) => {
@@ -55,7 +72,7 @@ export function FeedCard({ completion, onReact, onComment, commentCount }: FeedC
       <div className="flex items-start gap-3">
         <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-white/15 bg-gradient-to-br from-accent-cyan/75 to-accent-info/65 text-sm font-bold text-white">
           {avatarUrl ? (
-            <Image
+            <img
               src={avatarUrl}
               alt={profile?.display_name || "User"}
               width={44}

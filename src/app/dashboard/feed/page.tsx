@@ -29,7 +29,7 @@ export default function FeedPage() {
   const selectedTaskLabel = useMemo(() => {
     const taskKey = selectedItem?.task_key;
     if (typeof taskKey !== "string" || !taskKey) return "a task";
-    return taskKey.replace(/^custom_/, "").replaceAll("_", " ");
+    return taskKey.replace(/^custom_/, "").replace(/_/g, " ");
   }, [selectedItem]);
 
   if (loading) {

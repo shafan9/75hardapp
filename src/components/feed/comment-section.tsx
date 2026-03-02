@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { FeedComment } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
@@ -19,6 +18,24 @@ export function CommentSection({
 }: CommentSectionProps) {
   const [input, setInput] = useState("");
 
+  const getSafeAvatarUrl = (value: unknown): string | null => {
+    if (typeof value !== "string" || !value.trim()) return null;
+    const raw = value.trim();
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol !== "https:") return null;
+      if (
+        parsed.hostname === "lh3.googleusercontent.com" ||
+        parsed.hostname.endsWith(".supabase.co")
+      ) {
+        return raw;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleSubmit = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
@@ -34,6 +51,7 @@ export function CommentSection({
           {comments.length > 0 ? (
             comments.map((comment) => {
               const profile = comment.profiles;
+              const avatarUrl = getSafeAvatarUrl(profile?.avatar_url);
               const avatarFallback = (
                 profile?.display_name || "?"
               )[0].toUpperCase();
@@ -50,10 +68,10 @@ export function CommentSection({
                 >
                   {/* Avatar */}
                   <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-cyan to-accent-info text-[10px] font-bold text-white">
-                    {profile?.avatar_url ? (
-                      <Image
-                        src={profile.avatar_url}
-                        alt={profile.display_name || "User"}
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={profile?.display_name || "User"}
                         width={28}
                         height={28}
                         loading="lazy"

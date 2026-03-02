@@ -281,14 +281,19 @@ export default function DashboardPage() {
       >
         <div className="flex flex-col items-center text-center">
           <ProgressRing
-            variant="hero"
+            variant={compactTodayHero ? "avatar" : "hero"}
             progress={progressPercent}
             label={String(displayDay)}
             sublabel="DAY"
-            size={compactTodayHero ? 160 : 200}
+            size={compactTodayHero ? 128 : 200}
           />
 
-          <h1 className="mt-3 text-2xl font-black tracking-tight text-text-primary sm:text-3xl">
+          <h1
+            className={
+              (compactTodayHero ? "mt-2 text-xl sm:text-2xl" : "mt-3 text-2xl sm:text-3xl") +
+              " font-black tracking-tight text-text-primary"
+            }
+          >
             Day {displayDay} of {TOTAL_DAYS}
           </h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-text-secondary">
