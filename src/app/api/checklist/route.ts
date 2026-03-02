@@ -227,24 +227,24 @@ async function getSquadTimezone(
 async function getSquadStartDate(
   db: ReturnType<typeof getDbClient>,
   groupId: string,
-  squadTimezone: string,
+  userId: string,
   fallbackDate: string
 ) {
-  const { data: group, error: groupError } = await db
-    .from("groups")
-    .select("created_at")
-    .eq("id", groupId)
-    .maybeSingle();
+  const { data: progressRow, error: progressError } = await db
+    .from("challenge_progress")
+    .select("start_date")
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .limit(1);
 
-  if (groupError || !group) {
+  if (progressError) {
     return fallbackDate;
   }
 
-  const createdAt = (group as { created_at?: string | null }).created_at;
-  if (!createdAt) return fallbackDate;
+  const startDate = (progressRow?.[0] as { start_date?: string | null } | undefined)?.start_date;
+  if (!startDate) return fallbackDate;
 
-  const local = getLocalDate(new Date(createdAt), squadTimezone);
-  return local || fallbackDate;
+  return startDate;
 }
 
 async function ensureProgressRow(
@@ -480,13 +480,14 @@ export async function GET(request: Request) {
 
     const squadTimezone = await getSquadTimezone(db, groupId, fallbackTimezone, user.id);
     const today = getLocalDate(new Date(), squadTimezone);
-    const squadStartDate = await getSquadStartDate(db, groupId, squadTimezone, today);
+    const squadStartDate = await getSquadStartDate(db, groupId, user.id, today);
 
     try {
       await repairTaskCompletionDates(db, {
         groupId,
         userId: user.id,
         timezone: squadTimezone,
+        onlyDate: today,
       });
     } catch (error) {
       console.warn("Checklist repair skipped:", error);
@@ -534,17 +535,18 @@ export async function POST(request: Request) {
 
     const today = getLocalDate(new Date(), squadTimezone);
     const squadStartDate = groupId
-      ? await getSquadStartDate(db, groupId, squadTimezone, today)
+      ? await getSquadStartDate(db, groupId, user.id, today)
       : null;
 
     const actionDate = resolveEditableDate(body.targetDate, squadStartDate, today);
 
-    if (groupId) {
+    if (groupId && actionDate === today) {
       try {
         await repairTaskCompletionDates(db, {
           groupId,
           userId: user.id,
           timezone: squadTimezone,
+          onlyDate: today,
         });
       } catch (error) {
         console.warn("Checklist repair skipped:", error);

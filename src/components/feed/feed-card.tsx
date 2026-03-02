@@ -23,9 +23,12 @@ interface FeedCardProps {
 export function FeedCard({ completion, onReact, onComment, commentCount }: FeedCardProps) {
   const [tappedEmoji, setTappedEmoji] = useState<string | null>(null);
 
-  const defaultTask = DEFAULT_TASKS.find((task) => task.key === completion.task_key);
+  const rawTaskKey = typeof completion.task_key === "string" ? completion.task_key : "";
+  const defaultTask = DEFAULT_TASKS.find((task) => task.key === rawTaskKey);
   const taskEmoji = defaultTask?.emoji ?? "✨";
-  const taskLabel = defaultTask?.label ?? completion.task_key.replace("custom_", "");
+  const taskLabel =
+    defaultTask?.label ??
+    (rawTaskKey ? rawTaskKey.replace(/^custom_/, "").replaceAll("_", " ") : "Task");
 
   const profile = completion.profiles;
   const avatarUrl = profile?.avatar_url ?? null;

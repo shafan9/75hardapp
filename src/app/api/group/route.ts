@@ -231,22 +231,6 @@ async function buildGroupState(db: ReturnType<typeof getDbClient>, userId: strin
   };
 }
 
-async function getGroupStartDate(db: ReturnType<typeof getDbClient>, groupId: string, fallbackDate: string) {
-  const { data, error } = await db
-    .from("challenge_progress")
-    .select("start_date")
-    .eq("group_id", groupId)
-    .order("start_date", { ascending: true })
-    .limit(1);
-
-  if (error) {
-    return fallbackDate;
-  }
-
-  const first = (data?.[0] as { start_date?: string } | undefined)?.start_date;
-  return typeof first === "string" && first ? first : fallbackDate;
-}
-
 async function ensureProgressRow(
   db: ReturnType<typeof getDbClient>,
   userId: string,
@@ -333,7 +317,7 @@ async function joinGroup(
   db: ReturnType<typeof getDbClient>,
   userId: string,
   inviteCode: string,
-  fallbackStartDate: string
+  joinDate: string
 ): Promise<GroupRow> {
   const { data: groupData, error: groupError } = await db
     .from("groups")
@@ -357,8 +341,7 @@ async function joinGroup(
     throw new Error(`Could not join squad: ${membershipError.message}`);
   }
 
-  const startDate = await getGroupStartDate(db, group.id, fallbackStartDate);
-  await ensureProgressRow(db, userId, group.id, startDate);
+  await ensureProgressRow(db, userId, group.id, joinDate);
 
   return group;
 }

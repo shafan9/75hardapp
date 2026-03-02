@@ -26,6 +26,11 @@ export default function FeedPage() {
     () => feedItems.find((item) => item.id === openCommentsFor) ?? null,
     [feedItems, openCommentsFor]
   );
+  const selectedTaskLabel = useMemo(() => {
+    const taskKey = selectedItem?.task_key;
+    if (typeof taskKey !== "string" || !taskKey) return "a task";
+    return taskKey.replace(/^custom_/, "").replaceAll("_", " ");
+  }, [selectedItem]);
 
   if (loading) {
     return (
@@ -149,7 +154,7 @@ export default function FeedPage() {
               <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/15" />
               <h2 className="text-lg font-black text-text-primary">Comments</h2>
               <p className="mb-4 text-xs text-text-secondary">
-                {selectedItem.profiles?.display_name || "Someone"} completed {selectedItem.task_key.replace("_", " ")}
+                {selectedItem.profiles?.display_name || "Someone"} completed {selectedTaskLabel}
               </p>
 
               <CommentSection

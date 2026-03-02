@@ -13,6 +13,7 @@ type RepairOptions = {
   userId?: string;
   lookbackDays?: number;
   maxRows?: number;
+  onlyDate?: string;
 };
 
 function daysAgoIso(days: number): string {
@@ -22,7 +23,7 @@ function daysAgoIso(days: number): string {
 
 export async function repairTaskCompletionDates(
   db: any,
-  { groupId, timezone, userId, lookbackDays = 4, maxRows = 1200 }: RepairOptions
+  { groupId, timezone, userId, lookbackDays = 4, maxRows = 1200, onlyDate }: RepairOptions
 ): Promise<RepairResult> {
   if (!groupId || !timezone) {
     return { scanned: 0, attempted: 0, updated: 0, deletedDuplicates: 0 };
@@ -40,6 +41,9 @@ export async function repairTaskCompletionDates(
 
   if (userId) {
     query = query.eq("user_id", userId);
+  }
+  if (onlyDate) {
+    query = query.eq("date", onlyDate);
   }
 
   const { data, error } = await query;

@@ -206,7 +206,6 @@ export async function GET(request: Request) {
     const squadTimezone = await getSquadTimezone(db, groupId, fallbackTimezone, user.id);
     const today = getLocalDate(new Date(), squadTimezone);
     const squadStartDate = await getSquadStartDate(db, groupId, squadTimezone, today);
-    const squadDayNumber = getDayNumber(squadStartDate, today);
 
     try {
       const { data: groupRow } = await db
@@ -218,7 +217,11 @@ export async function GET(request: Request) {
       const ownerId = (groupRow as { created_by?: string | null } | null)?.created_by ?? null;
 
       if (ownerId && ownerId === user.id) {
-        await repairTaskCompletionDates(db, { groupId, timezone: squadTimezone });
+        await repairTaskCompletionDates(db, {
+          groupId,
+          timezone: squadTimezone,
+          onlyDate: today,
+        });
       }
     } catch (error) {
       console.warn("Squad status repair skipped:", error);
@@ -270,6 +273,8 @@ export async function GET(request: Request) {
     const memberStatuses = userIds.map((uid) => {
       const completedTasks = completionsByUser[uid] ?? [];
       const progress = progressByUser.get(uid) ?? null;
+      const memberStartDate =
+        (progress as { start_date?: string | null } | null)?.start_date ?? today;
 
       return {
         profile:
@@ -278,9 +283,9 @@ export async function GET(request: Request) {
             display_name: "Member",
             avatar_url: null,
             created_at: "",
-          },
+        },
         completedTasks,
-        currentDay: squadDayNumber,
+        currentDay: getDayNumber(memberStartDate, today),
         streak: getActiveStreak(progress, today),
         progress,
       };

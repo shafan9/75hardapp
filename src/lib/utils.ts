@@ -14,8 +14,12 @@ export function generateInviteCode(): string {
   return code;
 }
 
-export function formatRelativeTime(dateStr: string): string {
+export function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "just now";
+
   const date = new Date(dateStr);
+  if (!Number.isFinite(date.getTime())) return "just now";
+
   if (isToday(date)) return formatDistanceToNow(date, { addSuffix: true });
   if (isYesterday(date)) return "yesterday";
   return format(date, "MMM d");

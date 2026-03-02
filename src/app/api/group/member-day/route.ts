@@ -74,23 +74,24 @@ async function getSquadTimezone(
 async function getSquadStartDate(
   db: ReturnType<typeof getDbClient>,
   groupId: string,
-  squadTimezone: string,
+  memberId: string,
   fallbackDate: string
 ) {
-  const { data: group, error: groupError } = await db
-    .from("groups")
-    .select("created_at")
-    .eq("id", groupId)
-    .maybeSingle();
+  const { data: progressRows, error: progressError } = await db
+    .from("challenge_progress")
+    .select("start_date")
+    .eq("group_id", groupId)
+    .eq("user_id", memberId)
+    .limit(1);
 
-  if (groupError || !group) {
+  if (progressError) {
     return fallbackDate;
   }
 
-  const createdAt = (group as { created_at?: string | null }).created_at;
-  if (!createdAt) return fallbackDate;
+  const startDate = (progressRows?.[0] as { start_date?: string | null } | undefined)?.start_date;
+  if (!startDate) return fallbackDate;
 
-  return getLocalDate(new Date(createdAt), squadTimezone) || fallbackDate;
+  return startDate;
 }
 
 function getCurrentSquadDayNumber(squadStartDate: string, squadToday: string) {
@@ -213,7 +214,7 @@ export async function GET(request: Request) {
     const fallbackTimezone = getTimezoneFromRequest(request);
     const squadTimezone = await getSquadTimezone(db, groupId, fallbackTimezone, user.id);
     const squadToday = getLocalDate(new Date(), squadTimezone);
-    const squadStartDate = await getSquadStartDate(db, groupId, squadTimezone, squadToday);
+    const squadStartDate = await getSquadStartDate(db, groupId, memberId, squadToday);
 
     const parsedDay = dayParam ? Number(dayParam) : Number.NaN;
     const currentSquadDay = getCurrentSquadDayNumber(squadStartDate, squadToday);

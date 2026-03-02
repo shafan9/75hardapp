@@ -1,4 +1,4 @@
-const CACHE_NAME = "75squad-v3";
+const CACHE_NAME = "75squad-v4";
 const STATIC_ASSETS = [
   "/manifest.json",
   "/icons/icon-192.png",

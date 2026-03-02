@@ -170,6 +170,7 @@ export default function DashboardPage() {
   const progressPercent = getProgressPercent(displayDay, TOTAL_DAYS);
   const quoteOfTheDay = getMotivationalQuoteForDay(displayDay);
   const streakMessage = getStreakMessage(dayNumber);
+  const compactTodayHero = isViewingToday;
 
   const dayPickerItems = useMemo(() => {
     const start = Math.max(dayNumber - 6, 1);
@@ -273,7 +274,7 @@ export default function DashboardPage() {
   return (
     <div className="relative mx-auto w-full max-w-3xl space-y-5 pb-6">
       <motion.section
-        className="glass-card rounded-[30px] p-5 sm:p-6"
+        className="glass-card rounded-[30px] p-4 sm:p-5"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={springs.smooth}
@@ -284,9 +285,10 @@ export default function DashboardPage() {
             progress={progressPercent}
             label={String(displayDay)}
             sublabel="DAY"
+            size={compactTodayHero ? 160 : 200}
           />
 
-          <h1 className="mt-5 text-3xl font-black tracking-tight text-text-primary sm:text-4xl">
+          <h1 className="mt-3 text-2xl font-black tracking-tight text-text-primary sm:text-3xl">
             Day {displayDay} of {TOTAL_DAYS}
           </h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-text-secondary">
