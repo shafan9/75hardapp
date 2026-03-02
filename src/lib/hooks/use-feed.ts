@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { TaskCompletion, FeedReaction, FeedComment } from "@/lib/types";
+import type { TaskCompletion, FeedReaction, FeedComment, Profile } from "@/lib/types";
 import { useToast } from "@/components/ui/toast-provider";
 
 interface FeedItem extends TaskCompletion {
@@ -23,111 +23,141 @@ export function useFeed(groupId: string | undefined) {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
 
+  const fetchProfiles = useCallback(
+    async (userIds: string[]) => {
+      const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
+      if (!uniqueUserIds.length) {
+        return new Map<string, Profile>();
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url, created_at")
+        .in("id", uniqueUserIds);
+
+      if (error) {
+        console.warn("Could not load feed profiles:", error);
+        return new Map<string, Profile>();
+      }
+
+      return new Map(((data ?? []) as Profile[]).map((profile) => [profile.id, profile]));
+    },
+    [supabase]
+  );
+
   const fetchFeed = useCallback(
     async (pageNum: number = 0, append: boolean = false) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user || !groupId) {
-        setLoading(false);
-        return;
-      }
-
-      const from = pageNum * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-
-      // Fetch recent completions for the group
-      const { data: completionsData, error: completionsError } = await supabase
-        .from("task_completions")
-        .select("*, profiles(*)")
-        .eq("group_id", groupId)
-        .order("completed_at", { ascending: false })
-        .range(from, to);
-
-      if (completionsError) {
-        console.error("Error fetching feed:", completionsError);
-        toast.error("Could not load feed.");
-        setLoading(false);
-        return;
-      }
-
-      const completions = (completionsData ?? []) as TaskCompletion[];
-
-      if (completions.length < PAGE_SIZE) {
-        setHasMore(false);
-      }
-
-      if (completions.length === 0) {
-        if (!append) setFeedItems([]);
-        setLoading(false);
-        return;
-      }
-
-      const completionIds = completions.map((c) => c.id);
-
-      // Fetch reactions for these completions
-      const { data: reactionsData, error: reactionsError } = await supabase
-        .from("feed_reactions")
-        .select("*, profiles(*)")
-        .in("completion_id", completionIds);
-
-      if (reactionsError) {
-        console.error("Error fetching reactions:", reactionsError);
-      }
-
-      const reactions = (reactionsData ?? []) as FeedReaction[];
-
-      // Fetch comment counts for these completions
-      const { data: commentCountsData, error: commentCountsError } =
-        await supabase
-          .from("feed_comments")
-          .select("completion_id")
-          .in("completion_id", completionIds);
-
-      if (commentCountsError) {
-        console.error("Error fetching comment counts:", commentCountsError);
-      }
-
-      const commentsList = commentCountsData ?? [];
-      const commentCountMap: Record<string, number> = {};
-      for (const c of commentsList) {
-        const cid = (c as { completion_id: string }).completion_id;
-        commentCountMap[cid] = (commentCountMap[cid] ?? 0) + 1;
-      }
-
-      // Build feed items with reactions and counts
-      const items: FeedItem[] = completions.map((completion) => {
-        const completionReactions = reactions.filter(
-          (r) => r.completion_id === completion.id
-        );
-
-        const userReaction =
-          completionReactions.find((r) => r.user_id === user.id) ?? null;
-
-        const reactionCounts: Record<string, number> = {};
-        for (const r of completionReactions) {
-          reactionCounts[r.emoji] = (reactionCounts[r.emoji] ?? 0) + 1;
+        if (!user || !groupId) {
+          setLoading(false);
+          return;
         }
 
-        return {
-          ...completion,
-          reactions: completionReactions,
-          userReaction,
-          reactionCounts,
-          commentCount: commentCountMap[completion.id] ?? 0,
-        };
-      });
+        const from = pageNum * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
 
-      if (append) {
-        setFeedItems((prev) => [...prev, ...items]);
-      } else {
-        setFeedItems(items);
+        // Fetch recent completions for the group without relation expansion to avoid schema cache issues.
+        const { data: completionsData, error: completionsError } = await supabase
+          .from("task_completions")
+          .select("id, user_id, group_id, task_key, date, note, completed_at")
+          .eq("group_id", groupId)
+          .order("completed_at", { ascending: false })
+          .range(from, to);
+
+        if (completionsError) {
+          console.error("Error fetching feed:", completionsError);
+          toast.error("Could not load feed.");
+          setLoading(false);
+          return;
+        }
+
+        const completions = (completionsData ?? []) as TaskCompletion[];
+
+        if (completions.length < PAGE_SIZE) {
+          setHasMore(false);
+        }
+
+        if (completions.length === 0) {
+          if (!append) setFeedItems([]);
+          setLoading(false);
+          return;
+        }
+
+        const completionIds = completions.map((c) => c.id);
+        const profileMap = await fetchProfiles(completions.map((c) => c.user_id));
+
+        // Fetch reactions for these completions
+        const { data: reactionsData, error: reactionsError } = await supabase
+          .from("feed_reactions")
+          .select("id, completion_id, user_id, emoji, created_at")
+          .in("completion_id", completionIds);
+
+        if (reactionsError) {
+          console.error("Error fetching reactions:", reactionsError);
+        }
+
+        const reactions = (reactionsData ?? []) as FeedReaction[];
+
+        // Fetch comment counts for these completions
+        const { data: commentCountsData, error: commentCountsError } =
+          await supabase
+            .from("feed_comments")
+            .select("completion_id")
+            .in("completion_id", completionIds);
+
+        if (commentCountsError) {
+          console.error("Error fetching comment counts:", commentCountsError);
+        }
+
+        const commentsList = commentCountsData ?? [];
+        const commentCountMap: Record<string, number> = {};
+        for (const c of commentsList) {
+          const cid = (c as { completion_id: string }).completion_id;
+          commentCountMap[cid] = (commentCountMap[cid] ?? 0) + 1;
+        }
+
+        // Build feed items with reactions and counts
+        const items: FeedItem[] = completions.map((completion) => {
+          const completionReactions = reactions.filter(
+            (r) => r.completion_id === completion.id
+          );
+
+          const userReaction =
+            completionReactions.find((r) => r.user_id === user.id) ?? null;
+
+          const reactionCounts: Record<string, number> = {};
+          for (const r of completionReactions) {
+            reactionCounts[r.emoji] = (reactionCounts[r.emoji] ?? 0) + 1;
+          }
+
+          return {
+            ...completion,
+            profiles: profileMap.get(completion.user_id),
+            reactions: completionReactions,
+            userReaction,
+            reactionCounts,
+            commentCount: commentCountMap[completion.id] ?? 0,
+          };
+        });
+
+        if (append) {
+          setFeedItems((prev) => [...prev, ...items]);
+        } else {
+          setFeedItems(items);
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Unexpected feed load error:", error);
+        toast.error("Could not load feed.");
+        setLoading(false);
       }
-
-      setLoading(false);
     },
-    [supabase, groupId, toast]
+    [supabase, groupId, toast, fetchProfiles]
   );
 
   useEffect(() => {
@@ -182,7 +212,11 @@ export function useFeed(groupId: string | undefined) {
           fetchFeed(0, false);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.warn("Feed realtime unavailable; continuing without live updates.");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -302,7 +336,7 @@ export function useFeed(groupId: string | undefined) {
         user_id: user.id,
         content,
       })
-      .select("*, profiles(*)")
+      .select("id, completion_id, user_id, content, created_at")
       .single();
 
     if (error) {
@@ -311,7 +345,11 @@ export function useFeed(groupId: string | undefined) {
       return;
     }
 
-    const newComment = data as FeedComment;
+    const profileMap = await fetchProfiles([user.id]);
+    const newComment = {
+      ...(data as FeedComment),
+      profiles: profileMap.get(user.id),
+    } as FeedComment;
 
     // Update the comments cache
     setComments((prev) => ({
@@ -332,7 +370,7 @@ export function useFeed(groupId: string | undefined) {
   const loadComments = async (completionId: string) => {
     const { data, error } = await supabase
       .from("feed_comments")
-      .select("*, profiles(*)")
+      .select("id, completion_id, user_id, content, created_at")
       .eq("completion_id", completionId)
       .order("created_at", { ascending: true });
 
@@ -342,9 +380,16 @@ export function useFeed(groupId: string | undefined) {
       return;
     }
 
+    const rawComments = (data ?? []) as FeedComment[];
+    const profileMap = await fetchProfiles(rawComments.map((comment) => comment.user_id));
+    const enrichedComments = rawComments.map((comment) => ({
+      ...comment,
+      profiles: profileMap.get(comment.user_id),
+    }));
+
     setComments((prev) => ({
       ...prev,
-      [completionId]: (data ?? []) as FeedComment[],
+      [completionId]: enrichedComments,
     }));
   };
 

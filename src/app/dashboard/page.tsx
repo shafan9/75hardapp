@@ -285,12 +285,12 @@ export default function DashboardPage() {
             progress={progressPercent}
             label={String(displayDay)}
             sublabel="DAY"
-            size={compactTodayHero ? 128 : 200}
+            size={compactTodayHero ? 110 : 200}
           />
 
           <h1
             className={
-              (compactTodayHero ? "mt-2 text-xl sm:text-2xl" : "mt-3 text-2xl sm:text-3xl") +
+              (compactTodayHero ? "mt-1.5 text-lg sm:text-xl" : "mt-3 text-2xl sm:text-3xl") +
               " font-black tracking-tight text-text-primary"
             }
           >
