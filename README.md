@@ -1,4 +1,4 @@
-# 75 Squad
+# 75 Hard
 
 A lightweight 75-day challenge tracker built for small groups.
 
