@@ -71,11 +71,14 @@ In-app notifications are visible at:
 
 ## 6. Cron behavior
 
-A Netlify Scheduled Function runs every 15 minutes:
-- `netlify/functions/send-reminders.js`
+Reminders are **not scheduled by default**. An authorized external scheduler can
+call `POST /api/cron/send-reminders` with
+`Authorization: Bearer <NOTIFICATION_CRON_SECRET>`.
 
-It calls:
-- `POST /api/cron/send-reminders` (Bearer token with `NOTIFICATION_CRON_SECRET`)
+The optional `netlify/functions/send-reminders.js` relay also requires POST and
+the same bearer token before it makes any downstream request. Do not expose the
+token to browser code. Adding a Netlify schedule declaration alone does not
+authenticate a caller and is not a supported way to enable this relay.
 
 It sends reminders only when:
 - User is within their reminder-time window
