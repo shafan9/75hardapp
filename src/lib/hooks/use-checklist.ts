@@ -46,7 +46,7 @@ export function useChecklist(groupId: string | undefined, options: UseChecklistO
     setCurrentDay(Number(payload.currentDay ?? 0));
   }, []);
 
-  const loadState = useCallback(async () => {
+  const loadState = useCallback(async function loadState() {
     if (!enabled) {
       setTodayCompleted([]);
       setCustomTasks([]);
