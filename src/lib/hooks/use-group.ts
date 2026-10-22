@@ -35,7 +35,7 @@ export function useGroup(options: UseGroupOptions = {}) {
     setMembers((payload.members ?? []) as GroupMember[]);
   }, []);
 
-  const fetchGroup = useCallback(async () => {
+  const fetchGroup = useCallback(async function fetchGroup() {
     if (!enabled) {
       setLoading(false);
       return;
