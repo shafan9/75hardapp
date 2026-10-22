@@ -238,7 +238,7 @@ export function EmailAuthForm({
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             placeholder="How should your squad see you?"
-            className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
+            className="w-full rounded-xl border border-border bg-bg-surface min-h-12 px-3 py-3 text-base text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
           />
         </div>
       )}
@@ -259,7 +259,7 @@ export function EmailAuthForm({
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
-          className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
+          className="w-full rounded-xl border border-border bg-bg-surface min-h-12 px-3 py-3 text-base text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
           required
         />
       </div>
@@ -279,7 +279,7 @@ export function EmailAuthForm({
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           placeholder={mode === "signin" ? "Your password" : "At least 8 characters"}
-          className="w-full rounded-xl border border-border bg-bg-surface px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
+          className="w-full rounded-xl border border-border bg-bg-surface min-h-12 px-3 py-3 text-base text-text-primary placeholder:text-text-muted focus:border-accent-violet/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60"
           required
         />
       </div>
@@ -296,7 +296,7 @@ export function EmailAuthForm({
               void handleForgotPassword();
             }}
             disabled={loading || resetting}
-            className="text-xs font-semibold text-text-muted transition-colors hover:text-text-secondary disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
+            className="min-h-11 text-sm font-semibold text-text-secondary transition-colors hover:text-text-secondary disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70"
           >
             {resetting ? "Sending reset…" : "Forgot password?"}
           </button>
@@ -307,7 +307,7 @@ export function EmailAuthForm({
       <motion.button
         type="submit"
         disabled={loading}
-        className="w-full rounded-xl bg-gradient-to-r from-accent-violet to-accent-pink px-4 py-3 text-sm font-semibold text-white disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
+        className="w-full rounded-xl min-h-12 bg-brand px-4 py-3 text-base font-semibold text-bg-deepest hover:brightness-110 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/70 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary"
         whileTap={{ scale: 0.98 }}
       >
         {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}

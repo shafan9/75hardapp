@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CelebrationOverlay } from "@/components/celebration-overlay";
 import { ConfettiTrigger } from "@/components/ui/confetti-trigger";
@@ -58,14 +58,6 @@ export function DailyChecklist({
     if (isAllDone) setShowCelebration(true);
   }, [isAllDone]);
 
-  const completedRequiredCount = useMemo(
-    () =>
-      DEFAULT_TASKS.filter(
-        (task) => !("optional" in task && task.optional) && completions.includes(task.key)
-      ).length,
-    [completions]
-  );
-
   const handleAddTask = useCallback(() => {
     if (!newTaskName.trim()) return;
     onAddCustomTask(newTaskName.trim(), selectedEmoji);
@@ -98,14 +90,6 @@ export function DailyChecklist({
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-bold text-text-primary">Today&apos;s Tasks</h3>
-        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs font-semibold text-text-secondary">
-          {completedRequiredCount}/
-          {DEFAULT_TASKS.filter((t) => !("optional" in t && t.optional)).length} done
-        </span>
-      </div>
-
       <div className="space-y-3">
         <AnimatePresence mode="popLayout">
           {DEFAULT_TASKS.map((task) => (
@@ -125,17 +109,17 @@ export function DailyChecklist({
         </AnimatePresence>
       </div>
 
-      <div className="mt-4 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="mt-4 space-y-3 border-t border-border-light pt-4">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold text-text-secondary">Custom Tasks</h4>
           <button
             type="button"
             onClick={() => setShowAddForm((v) => !v)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+              "min-h-11 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
               showAddForm
                 ? "bg-accent-danger/15 text-accent-danger"
-                : "bg-accent-cyan/14 text-accent-cyan"
+                : "bg-brand/10 text-brand"
             )}
           >
             {showAddForm ? "Cancel" : "+ Add Task"}
@@ -160,7 +144,7 @@ export function DailyChecklist({
                       onClick={() => setSelectedEmoji(emoji)}
                       aria-label={`Choose emoji ${emoji}`}
                       className={cn(
-                        "grid h-9 w-9 place-items-center rounded-xl text-lg transition-colors",
+                        "grid h-11 w-11 place-items-center rounded-xl text-lg transition-colors",
                         selectedEmoji === emoji
                           ? "bg-accent-cyan/20 ring-2 ring-accent-cyan"
                           : "bg-bg-surface hover:bg-bg-card-hover"
@@ -184,14 +168,14 @@ export function DailyChecklist({
                       if (event.key === "Enter") handleAddTask();
                     }}
                     placeholder="Task name…"
-                    className="flex-1 rounded-xl border border-white/10 bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder:text-text-muted"
+                    className="min-w-0 min-h-11 flex-1 rounded-xl border border-white/10 bg-bg-surface px-3 py-2 text-base text-text-primary placeholder:text-text-muted"
                     maxLength={40}
                   />
                   <button
                     type="button"
                     onClick={handleAddTask}
                     disabled={!newTaskName.trim()}
-                    className="rounded-xl bg-gradient-to-r from-accent-cyan to-accent-info px-4 py-2 text-sm font-semibold text-white disabled:opacity-45"
+                    className="min-h-11 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-bg-deepest disabled:opacity-45"
                   >
                     Add
                   </button>
@@ -213,7 +197,7 @@ export function DailyChecklist({
                 exit={{ opacity: 0, x: 12 }}
               >
                 <div className="flex items-center gap-2">
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <TaskItem
                       taskKey={customKey}
                       emoji={task.emoji}
@@ -227,7 +211,7 @@ export function DailyChecklist({
                   <button
                     type="button"
                     onClick={() => onRemoveCustomTask(task.id)}
-                    className="rounded-lg p-2 text-text-muted transition-colors hover:bg-accent-danger/12 hover:text-accent-danger"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-lg p-2 text-text-muted transition-colors hover:bg-accent-danger/12 hover:text-accent-danger"
                     aria-label={`Remove ${task.name}`}
                   >
                     <svg

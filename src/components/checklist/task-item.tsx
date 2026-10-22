@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EmojiBurst } from "@/components/ui/emoji-burst";
 import { springs } from "@/lib/animations";
@@ -18,67 +18,6 @@ interface TaskItemProps {
   note?: string;
 }
 
-type AccentStyle = {
-  iconBg: string;
-  glow: string;
-  completedTint: string;
-};
-
-function getAccentForTask(taskKey: string): AccentStyle {
-  if (taskKey.startsWith("custom_")) {
-    return {
-      iconBg: "bg-gradient-to-br from-accent-info/80 to-accent-cyan/65",
-      glow: "shadow-[0_12px_32px_rgba(124,77,255,0.24)]",
-      completedTint: "bg-accent-info/12",
-    };
-  }
-
-  switch (taskKey) {
-    case "workout_outdoor":
-      return {
-        iconBg: "bg-gradient-to-br from-accent-orange/90 to-accent-gold/70",
-        glow: "shadow-[0_12px_32px_rgba(255,107,53,0.22)]",
-        completedTint: "bg-accent-orange/12",
-      };
-    case "workout_indoor":
-      return {
-        iconBg: "bg-gradient-to-br from-accent-cyan/80 to-accent-info/65",
-        glow: "shadow-[0_12px_32px_rgba(0,212,255,0.2)]",
-        completedTint: "bg-accent-cyan/12",
-      };
-    case "diet":
-      return {
-        iconBg: "bg-gradient-to-br from-accent-success/85 to-accent-gold/60",
-        glow: "shadow-[0_12px_32px_rgba(0,230,118,0.2)]",
-        completedTint: "bg-accent-success/12",
-      };
-    case "water":
-      return {
-        iconBg: "bg-gradient-to-br from-accent-cyan/90 to-accent-blue/70",
-        glow: "shadow-[0_12px_32px_rgba(0,212,255,0.22)]",
-        completedTint: "bg-accent-cyan/12",
-      };
-    case "reading":
-      return {
-        iconBg: "bg-gradient-to-br from-accent-gold/90 to-accent-orange/70",
-        glow: "shadow-[0_12px_32px_rgba(255,184,0,0.22)]",
-        completedTint: "bg-accent-gold/12",
-      };
-    case "progress_photo":
-      return {
-        iconBg: "bg-gradient-to-br from-accent-info/80 to-accent-orange/65",
-        glow: "shadow-[0_12px_32px_rgba(124,77,255,0.22)]",
-        completedTint: "bg-accent-info/12",
-      };
-    default:
-      return {
-        iconBg: "bg-gradient-to-br from-accent-cyan/75 to-accent-info/65",
-        glow: "shadow-[0_12px_32px_rgba(0,212,255,0.22)]",
-        completedTint: "bg-accent-cyan/12",
-      };
-  }
-}
-
 export function TaskItem({
   taskKey,
   emoji,
@@ -90,8 +29,6 @@ export function TaskItem({
   onAddNote,
   note,
 }: TaskItemProps) {
-  const accent = useMemo(() => getAccentForTask(taskKey), [taskKey]);
-
   const [showBurst, setShowBurst] = useState(false);
   const [flash, setFlash] = useState(false);
   const [noteValue, setNoteValue] = useState(note || "");
@@ -129,32 +66,26 @@ export function TaskItem({
       exit={{ opacity: 0, y: -10, scale: 0.98 }}
       transition={springs.smooth}
       className={cn(
-        "relative overflow-hidden rounded-3xl border px-4 py-4",
-        "min-h-[72px] bg-white/[0.04] backdrop-blur-[16px]",
+        "relative border-b border-border py-4",
+        "min-h-[72px]",
         "transition-colors",
-        isCompleted ? accent.completedTint : "hover:bg-white/[0.07]",
+        "hover:bg-white/[0.02]",
         flash && "bg-accent-cyan/10 ring-2 ring-accent-cyan/30",
-        "border-border-light"
       )}
     >
       <div className="flex items-start gap-3">
         <div
-          className={cn(
-            "relative grid h-12 w-12 flex-shrink-0 place-items-center rounded-2xl",
-            "shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]",
-            accent.iconBg,
-            accent.glow
-          )}
+          className="relative grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-bg-surface"
           aria-hidden="true"
         >
           <span className="text-2xl leading-none">{emoji}</span>
         </div>
 
         <div className="min-w-0 flex-1 pt-0.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className={cn(
-                "truncate text-[15px] font-semibold",
+                "break-words text-[15px] font-semibold",
                 isCompleted && "text-text-secondary line-through decoration-white/30"
               )}
             >
@@ -177,7 +108,7 @@ export function TaskItem({
               type="button"
               onClick={() => setShowNoteInput((value) => !value)}
               className={cn(
-                "grid h-10 w-10 place-items-center rounded-2xl border",
+                "grid h-11 w-11 place-items-center rounded-2xl border",
                 "border-white/12 bg-white/[0.05] text-text-secondary transition-colors",
                 "hover:bg-white/[0.1]"
               )}
@@ -206,9 +137,10 @@ export function TaskItem({
             className={cn(
               "relative grid h-11 w-11 place-items-center rounded-full border transition-colors",
               isCompleted
-                ? "border-accent-cyan/40 bg-accent-cyan text-white"
+                ? "border-brand/40 bg-brand text-bg-deepest"
                 : "border-white/16 bg-white/[0.03] text-text-secondary hover:bg-white/[0.1]"
             )}
+            aria-pressed={isCompleted}
             aria-label={`Mark ${label} as ${isCompleted ? "incomplete" : "complete"}`}
           >
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -230,7 +162,7 @@ export function TaskItem({
                 >
                   <path
                     d="M3 8.4L6.5 11.8L13 4.4"
-                    stroke="white"
+                    stroke="currentColor"
                     strokeWidth="2.4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -273,7 +205,7 @@ export function TaskItem({
                 }}
                 placeholder="Quick note (optional)"
                 className={cn(
-                  "flex-1 rounded-2xl border border-white/10 bg-bg-card px-3 py-2 text-xs text-text-primary",
+                  "min-w-0 min-h-11 flex-1 rounded-2xl border border-white/10 bg-bg-card px-3 py-2 text-base text-text-primary",
                   "placeholder:text-text-muted"
                 )}
               />
@@ -282,7 +214,7 @@ export function TaskItem({
                 onClick={handleNoteSubmit}
                 disabled={!noteValue.trim()}
                 className={cn(
-                  "rounded-2xl bg-gradient-to-r from-accent-cyan to-accent-info px-4 py-2 text-xs font-semibold text-white",
+                  "rounded-2xl min-h-11 bg-brand px-4 py-2 text-sm font-semibold text-bg-deepest",
                   "disabled:opacity-50"
                 )}
               >
