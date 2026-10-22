@@ -1,6 +1,7 @@
 import "server-only";
 
 import webpush from "web-push";
+import { sendBoundedPush } from "@/lib/server/push-transport";
 import { DEFAULT_TASK_KEYS } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NotificationChannel } from "@/lib/types";
@@ -214,7 +215,7 @@ async function sendPush(userId: string, title: string, body: string) {
 
   for (const subscription of subscriptions) {
     try {
-      await webpush.sendNotification(
+      await sendBoundedPush(
         {
           endpoint: subscription.endpoint as string,
           keys: {
