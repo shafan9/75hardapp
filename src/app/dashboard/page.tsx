@@ -69,6 +69,7 @@ export default function DashboardPage() {
     removeCustomTask,
     isAllDone,
     currentDay,
+    squadDate,
     refreshChecklist,
   } = useChecklist(group?.id, { enabled: authEnabled });
 
@@ -81,13 +82,6 @@ export default function DashboardPage() {
   const loading = authLoading || (authEnabled && (groupLoading || checklistLoading));
 
   const dayNumber = Math.min(Math.max(currentDay || 1, 1), TOTAL_DAYS);
-
-  useEffect(() => {
-    setSelectedDay((prev) => {
-      if (!prev) return dayNumber;
-      return prev > dayNumber ? dayNumber : prev;
-    });
-  }, [dayNumber]);
 
   const fetchDay = useCallback(
     async (day: number) => {
@@ -145,7 +139,8 @@ export default function DashboardPage() {
     void refreshRecentDays();
   }, [dayNumber, group?.id, refreshRecentDays, user?.id]);
 
-  const currentSelectedDay = selectedDay ?? dayNumber;
+  // Keep the default selection tied to loaded data, not the initial Day 1 fallback.
+  const currentSelectedDay = Math.min(selectedDay ?? dayNumber, dayNumber);
   const isViewingToday = currentSelectedDay === dayNumber;
   const selectedHistory = dayData[currentSelectedDay];
 
@@ -173,16 +168,19 @@ export default function DashboardPage() {
     return Array.from({ length: dayNumber - start + 1 }, (_, index) => {
       const day = start + index;
       const payload = dayData[day];
-      const status = payload ? getStatus(payload.tasks) : (day === dayNumber ? (isAllDone ? "complete" : "partial") : "empty");
+      const status = day === dayNumber
+        ? (isAllDone ? "complete" : todayRequiredStats.done > 0 ? "partial" : "empty")
+        : payload ? getStatus(payload.tasks) : "empty";
 
       return {
         day,
-        date: payload?.date,
+        // The challenge day is capped at 75; today's checklist still uses the squad's current date.
+        date: day === dayNumber ? squadDate : payload?.date,
         status,
         isToday: day === dayNumber,
       };
     }).reverse();
-  }, [dayData, dayNumber, isAllDone]);
+  }, [dayData, dayNumber, isAllDone, squadDate, todayRequiredStats.done]);
 
   const mutatePastDayTask = useCallback(
     async (taskKey: string, note?: string) => {
