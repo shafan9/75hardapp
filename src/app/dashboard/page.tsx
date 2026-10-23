@@ -5,14 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { DailyChecklist } from "@/components/checklist/daily-checklist";
 import { TaskItem } from "@/components/checklist/task-item";
-import { ProgressRing } from "@/components/ui/progress-ring";
 import { useToast } from "@/components/ui/toast-provider";
 import { TOTAL_DAYS } from "@/lib/constants";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { useChecklist } from "@/lib/hooks/use-checklist";
 import { useGroup } from "@/lib/hooks/use-group";
 import { springs } from "@/lib/animations";
-import { getMotivationalQuoteForDay, getProgressPercent, getStreakMessage } from "@/lib/utils";
+import { getMotivationalQuoteForDay } from "@/lib/utils";
 
 type HistoryTask = {
   key: string;
@@ -167,10 +166,7 @@ export default function DashboardPage() {
   }, [isViewingToday, selectedTasks, todayRequiredStats]);
 
   const displayDay = isViewingToday ? dayNumber : currentSelectedDay;
-  const progressPercent = getProgressPercent(displayDay, TOTAL_DAYS);
   const quoteOfTheDay = getMotivationalQuoteForDay(displayDay);
-  const streakMessage = getStreakMessage(dayNumber);
-  const compactTodayHero = isViewingToday;
 
   const dayPickerItems = useMemo(() => {
     const start = Math.max(dayNumber - 6, 1);
@@ -185,7 +181,7 @@ export default function DashboardPage() {
         status,
         isToday: day === dayNumber,
       };
-    });
+    }).reverse();
   }, [dayData, dayNumber, isAllDone]);
 
   const mutatePastDayTask = useCallback(
@@ -269,48 +265,26 @@ export default function DashboardPage() {
     );
   }
 
-  const flameScale = Math.min(1 + displayDay / 180, 1.35);
 
   return (
     <div className="relative mx-auto w-full max-w-3xl space-y-5 pb-6">
       <motion.section
-        className="glass-card rounded-[30px] p-4 sm:p-5"
+        className="glass-card rounded-2xl p-4 sm:p-5"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={springs.smooth}
       >
-        <div className="flex flex-col items-center text-center">
-          <ProgressRing
-            variant={compactTodayHero ? "avatar" : "hero"}
-            progress={progressPercent}
-            label={String(displayDay)}
-            sublabel="DAY"
-            size={compactTodayHero ? 110 : 200}
-          />
-
-          <h1
-            className={
-              (compactTodayHero ? "mt-1.5 text-lg sm:text-xl" : "mt-3 text-2xl sm:text-3xl") +
-              " font-black tracking-tight text-text-primary"
-            }
-          >
-            Day {displayDay} of {TOTAL_DAYS}
-          </h1>
-          <p className="mt-1 flex items-center gap-2 text-sm text-text-secondary">
-            <motion.span
-              animate={{ scale: [flameScale, flameScale * 1.07, flameScale] }}
-              transition={{ duration: 1.3, repeat: Infinity }}
-              className="inline-block"
-              aria-hidden="true"
-            >
-              🔥
-            </motion.span>
-            {isViewingToday ? streakMessage : `Viewing day ${displayDay}`}
-          </p>
-          <p className="mt-1 text-xs text-text-muted">
-            {selectedRequiredStats.done}/{selectedRequiredStats.total} required tasks done
-          </p>
+        <div className="flex items-start justify-between gap-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Day {displayDay} of {TOTAL_DAYS}</p>
+            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl tracking-tight text-text-primary">{isViewingToday ? "Make today count." : `Your day ${displayDay}`}</h1>
+            <p className="mt-2 text-sm text-text-secondary">{isViewingToday ? "One task at a time. You've got this." : "Review and update your checklist."}</p>
+          </div>
+          <span className="shrink-0 rounded-xl bg-brand/10 px-3 py-2 text-lg font-semibold tabular-nums text-brand" aria-label={`${selectedRequiredStats.done} of ${selectedRequiredStats.total} required tasks complete`}>
+            {selectedRequiredStats.done}<span className="text-sm text-text-muted"> / {selectedRequiredStats.total}</span>
+          </span>
         </div>
+        <progress className="daily-progress mt-5 h-1.5 w-full" value={selectedRequiredStats.done} max={selectedRequiredStats.total || 1} aria-label="Required tasks completed" />
 
         <div className="mt-5 -mx-1 overflow-x-auto pb-1">
           <div className="flex min-w-max items-center gap-2 px-1">
@@ -340,10 +314,11 @@ export default function DashboardPage() {
                       }
                     }
                   }}
+                  aria-pressed={isActive}
                   className={
-                    `rounded-2xl border px-3 py-2 text-left transition-colors ` +
+                    `min-h-11 rounded-xl border px-3 py-2 text-left transition-colors ` +
                     (isActive
-                      ? "border-accent-cyan bg-accent-cyan/12"
+                      ? "border-brand/60 bg-brand/10"
                       : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]")
                   }
                 >
@@ -364,28 +339,17 @@ export default function DashboardPage() {
       </motion.section>
 
       <motion.section
-        className="glass-card rounded-[30px] p-5 sm:p-6"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...springs.smooth, delay: 0.03 }}
-      >
-        <p className="text-4xl leading-none text-accent-cyan/25" aria-hidden="true">&ldquo;</p>
-        <p className="-mt-2 text-lg italic leading-relaxed text-text-primary">{quoteOfTheDay.text}</p>
-        <p className="mt-2 text-sm text-text-secondary">{quoteOfTheDay.author}</p>
-      </motion.section>
-
-      <motion.section
-        className="glass-card rounded-[30px] p-5 sm:p-6"
+        className="glass-card rounded-2xl p-5 sm:p-6"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...springs.smooth, delay: 0.06 }}
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-xl font-black text-text-primary">Today&apos;s Tasks</h2>
+            <h2 className="text-xl font-black text-text-primary">{isViewingToday ? "Your checklist" : `Day ${currentSelectedDay} checklist`}</h2>
             <p className="text-xs text-text-muted">
               {isViewingToday
-                ? "Complete your checklist and trigger celebration."
+                ? "Check off each task as you go."
                 : `Editing Day ${currentSelectedDay} (${selectedHistory?.date ?? ""})`}
             </p>
           </div>
@@ -440,6 +404,11 @@ export default function DashboardPage() {
           </div>
         )}
       </motion.section>
+
+      <details className="rounded-2xl border border-border-light px-5 py-1 text-sm text-text-secondary">
+        <summary className="min-h-11 cursor-pointer py-3 font-medium">A little motivation</summary>
+        <blockquote className="pb-4 leading-relaxed"><p>{quoteOfTheDay.text}</p><footer className="mt-2 text-xs text-text-muted">{quoteOfTheDay.author}</footer></blockquote>
+      </details>
 
       <p className="px-1 text-center text-xs text-text-muted">
         Hi {profile?.display_name || "there"}. Squad setup and invites live in the Squad tab.

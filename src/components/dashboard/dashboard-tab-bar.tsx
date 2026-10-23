@@ -108,10 +108,9 @@ export function DashboardTabBar() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[rgba(7,7,12,0.85)] px-2 pt-2 backdrop-blur-3xl"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-bg-primary/95 px-2 pt-2 backdrop-blur-md"
       style={{
-        bottom: "calc(env(safe-area-inset-bottom) + 6px)",
-        paddingBottom: "14px",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
       }}
       aria-label="Primary dashboard tabs"
     >
@@ -131,7 +130,7 @@ export function DashboardTabBar() {
                 className={cn(
                   "flex flex-col items-center justify-center rounded-2xl px-2 py-2.5 transition-colors",
                   active
-                    ? "bg-accent-cyan/12 text-accent-cyan"
+                    ? "bg-brand/10 text-brand"
                     : "text-text-muted hover:bg-white/[0.04] hover:text-text-secondary"
                 )}
               >
@@ -145,7 +144,7 @@ export function DashboardTabBar() {
                 <span
                   className={cn(
                     "mt-1 text-[11px] font-semibold",
-                    active ? "text-accent-cyan" : "text-text-muted"
+                    active ? "text-brand" : "text-text-muted"
                   )}
                 >
                   {tab.label}

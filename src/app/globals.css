@@ -1,15 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg-deepest: #07070c;
-  --color-bg-primary: #0f0f17;
-  --color-bg-card: #16161f;
-  --color-bg-card-hover: #1e1e2a;
-  --color-bg-surface: #242433;
+  --color-bg-deepest: #101411;
+  --color-bg-primary: #101411;
+  --color-bg-card: #191f1b;
+  --color-bg-card-hover: #232b25;
+  --color-bg-surface: #252e28;
 
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #8888a0;
-  --color-text-muted: #555568;
+  --color-text-primary: #f3f5ee;
+  --color-text-secondary: #bcc6bd;
+  --color-text-muted: #99a69c;
+
+  --color-brand: #c8ef98;
 
   --color-accent-cyan: #00d4ff;
   --color-accent-orange: #ff6b35;
@@ -33,10 +35,12 @@
   --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html {
@@ -48,28 +52,12 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(56rem 32rem at 16% -8%, rgba(0, 212, 255, 0.2), transparent 62%),
-    radial-gradient(48rem 30rem at 90% 4%, rgba(255, 107, 53, 0.18), transparent 58%),
-    radial-gradient(40rem 24rem at 50% 100%, rgba(124, 77, 255, 0.12), transparent 66%),
-    var(--color-bg-deepest);
-  background-attachment: fixed;
+  background: var(--color-bg-deepest);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 24px 24px;
-  opacity: 0.02;
-  mix-blend-mode: overlay;
 }
 
 .gradient-text {
@@ -81,15 +69,10 @@ body::before {
 
 .glass-card {
   position: relative;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
   border-radius: 20px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -10px 30px rgba(0, 0, 0, 0.2),
-    0 14px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
 
 .glass-card > * {
@@ -207,3 +190,15 @@ body::before {
     scroll-behavior: auto !important;
   }
 }
+
+.daily-progress {
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-bg-surface);
+  color: var(--color-brand);
+}
+.daily-progress::-webkit-progress-bar { background: var(--color-bg-surface); }
+.daily-progress::-webkit-progress-value { background: var(--color-brand); border-radius: 999px; }
+.daily-progress::-moz-progress-bar { background: var(--color-brand); border-radius: 999px; }
