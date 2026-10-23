@@ -103,6 +103,7 @@ export function useAuth() {
 
   useEffect(() => {
     let isMounted = true;
+    let profileTimer: ReturnType<typeof setTimeout> | undefined;
 
     const getUser = async () => {
       try {
@@ -137,6 +138,7 @@ export function useAuth() {
       } catch (error) {
         console.error("Error fetching user:", error);
       } finally {
+        clearTimeout(failSafeId);
         if (isMounted) setLoading(false);
       }
     };
@@ -151,27 +153,33 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      try {
-        const currentUser = session?.user ?? null;
-        if (!isMounted) return;
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return;
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      clearTimeout(profileTimer);
 
-        setUser(currentUser);
-
-        if (currentUser) {
-          await fetchProfile(currentUser.id);
-        } else {
-          setProfile(null);
-        }
-      } catch (error) {
-        console.error("Error handling auth state change:", error);
-      } finally {
-        if (isMounted) setLoading(false);
+      if (!currentUser) {
+        setProfile(null);
+        setLoading(false);
+        clearTimeout(failSafeId);
+        return;
       }
+
+      // Supabase holds its auth lock during callbacks. Start profile requests
+      // in the next task so they can acquire that lock after this callback returns.
+      profileTimer = setTimeout(() => {
+        if (!isMounted) return;
+        void fetchProfile(currentUser.id).finally(() => {
+          clearTimeout(failSafeId);
+          if (isMounted) setLoading(false);
+        });
+      }, 0);
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(profileTimer);
       clearTimeout(failSafeId);
       subscription.unsubscribe();
     };
