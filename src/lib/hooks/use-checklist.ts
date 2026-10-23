@@ -10,6 +10,7 @@ interface ChecklistStateResponse {
   todayCompleted?: string[];
   progress?: ChallengeProgress | null;
   currentDay?: number;
+  squadDate?: string;
   isAllDone?: boolean;
   error?: string;
 }
@@ -24,6 +25,7 @@ export function useChecklist(groupId: string | undefined, options: UseChecklistO
   const [customTasks, setCustomTasks] = useState<CustomTask[]>([]);
   const [progress, setProgress] = useState<ChallengeProgress | null>(null);
   const [currentDay, setCurrentDay] = useState(0);
+  const [squadDate, setSquadDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
@@ -44,6 +46,7 @@ export function useChecklist(groupId: string | undefined, options: UseChecklistO
     setCustomTasks(payload.customTasks ?? []);
     setProgress((payload.progress as ChallengeProgress | null | undefined) ?? null);
     setCurrentDay(Number(payload.currentDay ?? 0));
+    setSquadDate(payload.squadDate ?? null);
   }, []);
 
   const loadState = useCallback(async function loadState() {
@@ -52,6 +55,7 @@ export function useChecklist(groupId: string | undefined, options: UseChecklistO
       setCustomTasks([]);
       setProgress(null);
       setCurrentDay(0);
+      setSquadDate(null);
       setLoading(false);
       return;
     }
@@ -83,6 +87,7 @@ export function useChecklist(groupId: string | undefined, options: UseChecklistO
         setCustomTasks([]);
         setProgress(null);
         setCurrentDay(0);
+        setSquadDate(null);
         setLoading(false);
         return;
       }
@@ -219,6 +224,7 @@ export function useChecklist(groupId: string | undefined, options: UseChecklistO
     removeCustomTask,
     isAllDone,
     currentDay,
+    squadDate,
     progress,
     refreshChecklist: loadState,
   };
