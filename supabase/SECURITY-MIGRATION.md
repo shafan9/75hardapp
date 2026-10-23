@@ -19,12 +19,12 @@ Before applying:
 2. Verify that row-level security is enabled and no progress records lack a
    matching membership. The migration checks these conditions itself and aborts
    atomically if they fail. Short lock/statement timeouts also abort safely.
-3. Review the existing membership roster with the squad owner. The old policies
-   allowed arbitrary self-enrollment. This patch blocks future enrollment
-   bypasses but deliberately preserves existing memberships; it cannot establish
+3. Record historical membership as unverified unless the squad owner has reviewed
+   the roster. The old policies allowed arbitrary self-enrollment. Containment
+   can proceed while preserving existing memberships, but it cannot establish
    whether any were forged before the cutover. A zero orphan-progress count is
-   **not** proof of legitimate membership or absence of past compromise. Do not
-   delete or bulk revoke existing members without that review.
+   **not** proof of legitimate membership or absence of past compromise. Owner
+   review is required before declaring that history safe or removing members.
 
 After applying, repeat anonymous REST checks and aggregate counts. Check the
 signed-in feed and checklist with an existing authorized account. Do not create
