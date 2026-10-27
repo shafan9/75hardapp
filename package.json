@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test:security": "node scripts/test-security.cjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed"
   },

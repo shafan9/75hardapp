@@ -4,12 +4,12 @@ const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-// Opt-in integration test against a disposable, socket-only local PostgreSQL.
+// Integration test against the disposable, socket-only PostgreSQL owned by
+// npm run test:security. A missing prerequisite must fail, never skip.
 // DATABASE_URL and production credentials are deliberately never used.
-test('real PostgreSQL enforces squad isolation and preserves server workflows', {
-  skip: !process.env.SQUAD_TEST_PG_SOCKET,
-}, () => {
+test('real PostgreSQL enforces squad isolation and preserves server workflows', () => {
   const socket = process.env.SQUAD_TEST_PG_SOCKET;
+  assert.ok(socket, 'Run npm run test:security to create the disposable PostgreSQL fixture');
   assert.ok(path.isAbsolute(socket) && !socket.includes('://'));
   const port = process.env.SQUAD_TEST_PG_PORT || '65439';
   assert.match(port, /^\d+$/);
